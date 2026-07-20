@@ -1,5 +1,5 @@
 import { Separator } from "@/components/ui/separator";
-import { getPlayerValues } from "@/lib/fantasycalc";
+import { getTeamContexts } from "@/lib/team-context";
 
 import { TradeAnalyzer } from "./trade-analyzer";
 
@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default async function TradePage() {
-  const players = await getPlayerValues();
+  const { teams, values } = await getTeamContexts();
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-10 dark:bg-black sm:px-6 sm:py-16">
@@ -24,7 +24,7 @@ export default async function TradePage() {
 
         <Separator />
 
-        <TradeAnalyzer players={players} />
+        <TradeAnalyzer players={values} teams={teams} />
       </main>
     </div>
   );

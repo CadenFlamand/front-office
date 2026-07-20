@@ -6,14 +6,29 @@ import { Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
+import type { PlayoffBucket, TeamContext } from "@/lib/team-context";
+import { useStoredRosterId } from "@/lib/team-selection";
 
 const RESULT_LIMIT = 8;
 
 type Side = "give" | "receive";
 
-export function TradeAnalyzer({ players }: { players: TradeablePlayer[] }) {
+export function TradeAnalyzer({
+  players,
+  teams,
+}: {
+  players: TradeablePlayer[];
+  teams: TeamContext[];
+}) {
   const [giveIds, setGiveIds] = useState<string[]>([]);
   const [receiveIds, setReceiveIds] = useState<string[]>([]);
+
+  // For this session only: if no team is saved via the home page's team
+  // picker, let the user pick one here without persisting it.
+  const [sessionRosterId, setSessionRosterId] = useState<number | null>(null);
+  const storedRosterId = useStoredRosterId();
+  const selectedRosterId = storedRosterId ?? sessionRosterId;
+  const selectedTeam = teams.find((team) => team.rosterId === selectedRosterId);
 
   const playersById = useMemo(
     () => new Map(players.map((player) => [player.sleeperId, player])),
@@ -23,6 +38,17 @@ export function TradeAnalyzer({ players }: { players: TradeablePlayer[] }) {
     () => new Set([...giveIds, ...receiveIds]),
     [giveIds, receiveIds]
   );
+
+  // "You Give" is scoped to the selected team's actual roster (already
+  // fetched from Sleeper), not the full league player pool — "You Receive"
+  // stays a full-league search since you don't necessarily know the other
+  // team's roster upfront.
+  const rosterPlayers = useMemo(() => {
+    if (!selectedTeam) return [];
+    return selectedTeam.rosterPlayerIds
+      .map((id) => playersById.get(id))
+      .filter((player): player is TradeablePlayer => player !== undefined);
+  }, [selectedTeam, playersById]);
 
   function addPlayer(side: Side, sleeperId: string) {
     if (side === "give") setGiveIds((ids) => [...ids, sleeperId]);
@@ -41,18 +67,41 @@ export function TradeAnalyzer({ players }: { players: TradeablePlayer[] }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <Verdict diff={diff} hasPlayers={hasPlayers} />
+      <TeamHeader
+        teams={teams}
+        selectedTeam={selectedTeam}
+        isAutoDetected={storedRosterId !== null}
+        onSelectSessionTeam={setSessionRosterId}
+      />
+
+      <div className="flex flex-col gap-3">
+        {selectedTeam && hasPlayers && (
+          <TeamContextLine
+            team={selectedTeam}
+            diff={diff}
+            giveIds={giveIds}
+            receiveIds={receiveIds}
+            playersById={playersById}
+          />
+        )}
+
+        <Verdict diff={diff} hasPlayers={hasPlayers} />
+      </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <TradeColumn
           title="You Give"
-          players={players}
+          players={rosterPlayers}
           selectedIds={selectedIds}
           sideIds={giveIds}
           playersById={playersById}
           total={giveTotal}
           onAdd={(id) => addPlayer("give", id)}
           onRemove={(id) => removePlayer("give", id)}
+          showRoster
+          disabledMessage={
+            !selectedTeam ? "Select your team above to see your roster." : undefined
+          }
         />
         <TradeColumn
           title="You Receive"
@@ -71,6 +120,140 @@ export function TradeAnalyzer({ players }: { players: TradeablePlayer[] }) {
 
 function sumValues(ids: string[], playersById: Map<string, TradeablePlayer>): number {
   return ids.reduce((sum, id) => sum + (playersById.get(id)?.value ?? 0), 0);
+}
+
+function TeamHeader({
+  teams,
+  selectedTeam,
+  isAutoDetected,
+  onSelectSessionTeam,
+}: {
+  teams: TeamContext[];
+  selectedTeam: TeamContext | undefined;
+  isAutoDetected: boolean;
+  onSelectSessionTeam: (rosterId: number | null) => void;
+}) {
+  if (selectedTeam) {
+    return (
+      <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+        <div>
+          <p className="font-medium">{selectedTeam.teamName}</p>
+          <p className="text-sm text-muted-foreground">{selectedTeam.record}</p>
+        </div>
+        {!isAutoDetected && (
+          <span className="text-xs text-muted-foreground">This session only</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border px-4 py-3">
+      <label className="text-sm font-medium" htmlFor="trade-team-select">
+        Select your team (for this session only)
+      </label>
+      <select
+        className="h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        defaultValue=""
+        id="trade-team-select"
+        onChange={(event) =>
+          onSelectSessionTeam(event.target.value ? Number(event.target.value) : null)
+        }
+      >
+        <option disabled value="">
+          Choose a team…
+        </option>
+        {teams.map((team) => (
+          <option key={team.rosterId} value={team.rosterId}>
+            {team.teamName} — {team.ownerName}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+const BUCKET_GOAL: Record<PlayoffBucket, string> = {
+  "Playoff Favorite": "locking up a top playoff seed",
+  "Playoff Contender": "making the playoffs",
+  "Playoff Hopeful": "a late push",
+};
+
+// Strategy framing per bucket (this is redraft, not dynasty, so a bad record
+// means "chase upside for the rest of this season," not "rebuild for next
+// year"):
+//   Favorite:  favor proven/consistent production, avoid unnecessary volatility.
+//   Contender: same lean, but open to a calculated risk if it fixes a real hole.
+//   Hopeful:   favor ceiling over floor — a safe-but-capped player doesn't move
+//              the needle for a team unlikely to make the playoffs.
+//
+// The current data has no per-player ceiling/floor or volatility signal, so
+// this is only expressed as a simple tie-break between "did the trade win on
+// raw value" and "did it fix or worsen a real roster hole" — not a full
+// player-level model.
+function tradeHelpsTeam(
+  bucket: PlayoffBucket,
+  diff: number,
+  holeChange: number
+): boolean {
+  if (holeChange > 0 && diff >= 0) return true;
+  if (holeChange < 0 && diff <= 0) return false;
+  if (holeChange !== 0) {
+    if (bucket === "Playoff Hopeful") return holeChange > 0;
+    if (bucket === "Playoff Favorite") return diff >= 0;
+    return diff >= 0 || holeChange > 0;
+  }
+  return diff >= 0;
+}
+
+function countAtPositions(
+  ids: string[],
+  positions: Set<string>,
+  playersById: Map<string, TradeablePlayer>
+): number {
+  return ids.reduce((count, id) => {
+    const player = playersById.get(id);
+    return player && positions.has(player.position) ? count + 1 : count;
+  }, 0);
+}
+
+function TeamContextLine({
+  team,
+  diff,
+  giveIds,
+  receiveIds,
+  playersById,
+}: {
+  team: TeamContext;
+  diff: number;
+  giveIds: string[];
+  receiveIds: string[];
+  playersById: Map<string, TradeablePlayer>;
+}) {
+  const thinPositions = useMemo(() => new Set(team.thinPositions), [team]);
+  const holeChange =
+    countAtPositions(receiveIds, thinPositions, playersById) -
+    countAtPositions(giveIds, thinPositions, playersById);
+  const helps = tradeHelpsTeam(team.bucket, diff, holeChange);
+  const thinSuffix =
+    team.thinPositions.length > 0 ? ` thin at ${team.thinPositions.join("/")}` : "";
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      As a {team.bucket}
+      {thinSuffix}, this trade{" "}
+      <span
+        className={
+          helps
+            ? "font-medium text-emerald-600 dark:text-emerald-400"
+            : "font-medium text-red-600 dark:text-red-400"
+        }
+      >
+        {helps ? "helps" : "hurts"}
+      </span>{" "}
+      your path to {BUCKET_GOAL[team.bucket]}.
+    </p>
+  );
 }
 
 function Verdict({ diff, hasPlayers }: { diff: number; hasPlayers: boolean }) {
@@ -122,6 +305,8 @@ function TradeColumn({
   total,
   onAdd,
   onRemove,
+  showRoster,
+  disabledMessage,
 }: {
   title: string;
   players: TradeablePlayer[];
@@ -131,6 +316,8 @@ function TradeColumn({
   total: number;
   onAdd: (sleeperId: string) => void;
   onRemove: (sleeperId: string) => void;
+  showRoster?: boolean;
+  disabledMessage?: string;
 }) {
   return (
     <Card>
@@ -143,7 +330,18 @@ function TradeColumn({
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <PlayerPicker players={players} excludeIds={selectedIds} onSelect={onAdd} />
+        {disabledMessage ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {disabledMessage}
+          </p>
+        ) : (
+          <>
+            {showRoster && (
+              <RosterGrid players={players} excludeIds={selectedIds} onSelect={onAdd} />
+            )}
+            <PlayerPicker players={players} excludeIds={selectedIds} onSelect={onAdd} />
+          </>
+        )}
 
         <div className="flex flex-col gap-2">
           {sideIds.length === 0 && (
@@ -182,6 +380,58 @@ function TradeColumn({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function RosterGrid({
+  players,
+  excludeIds,
+  onSelect,
+}: {
+  players: TradeablePlayer[];
+  excludeIds: Set<string>;
+  onSelect: (sleeperId: string) => void;
+}) {
+  const available = useMemo(
+    () =>
+      players
+        .filter((player) => !excludeIds.has(player.sleeperId))
+        .sort((a, b) => b.value - a.value),
+    [players, excludeIds]
+  );
+
+  if (available.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        All your tradeable players are already in this trade.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        Your Roster
+      </p>
+      <div className="flex flex-col gap-2">
+        {available.map((player) => (
+          <button
+            className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+            key={player.sleeperId}
+            onClick={() => onSelect(player.sleeperId)}
+            type="button"
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {player.name}{" "}
+              <span className="text-xs text-muted-foreground">
+                {player.position} · {player.team ?? "FA"}
+              </span>
+            </span>
+            <Badge variant="outline">{player.value.toLocaleString()}</Badge>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

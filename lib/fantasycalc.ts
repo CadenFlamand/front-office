@@ -4,6 +4,7 @@ export interface TradeablePlayer {
   position: string;
   team: string | null;
   value: number;
+  positionRank: number;
 }
 
 interface FantasyCalcEntry {
@@ -14,6 +15,7 @@ interface FantasyCalcEntry {
     maybeTeam: string | null;
   };
   value: number;
+  positionRank: number;
 }
 
 const FANTASYCALC_URL =
@@ -43,6 +45,7 @@ export async function getPlayerValues(): Promise<TradeablePlayer[]> {
       position: entry.player.position,
       team: entry.player.maybeTeam,
       value: entry.value,
+      positionRank: entry.positionRank,
     }));
 
   cache = { players, fetchedAt: Date.now() };
