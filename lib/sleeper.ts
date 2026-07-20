@@ -16,6 +16,8 @@ export interface SleeperRosterSettings {
   ties: number;
   fpts?: number;
   fpts_decimal?: number;
+  fpts_against?: number;
+  fpts_against_decimal?: number;
 }
 
 export interface SleeperRoster {
@@ -108,4 +110,14 @@ export function getPlayerName(playerId: string, players: PlayersById): string {
 
 export function getAvatarUrl(avatar: string | null): string | undefined {
   return avatar ? `https://sleepercdn.com/avatars/thumbs/${avatar}` : undefined;
+}
+
+export function getPointsFor(roster: SleeperRoster): number {
+  const { fpts = 0, fpts_decimal = 0 } = roster.settings ?? {};
+  return fpts + fpts_decimal / 100;
+}
+
+export function getPointsAgainst(roster: SleeperRoster): number {
+  const { fpts_against = 0, fpts_against_decimal = 0 } = roster.settings ?? {};
+  return fpts_against + fpts_against_decimal / 100;
 }

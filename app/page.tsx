@@ -1,13 +1,34 @@
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { TeamDashboard, type TeamSummary } from "@/components/team-dashboard";
 import { Separator } from "@/components/ui/separator";
+import {
+  getAvatarUrl,
+  getPointsAgainst,
+  getPointsFor,
+  getRecord,
+  getRosters,
+  getTeamName,
+  getUsers,
+} from "@/lib/sleeper";
 
-export default function Home() {
+export default async function Home() {
+  const [rosters, users] = await Promise.all([getRosters(), getUsers()]);
+  const usersById = new Map(users.map((user) => [user.user_id, user]));
+
+  const teams: TeamSummary[] = rosters
+    .map((roster) => {
+      const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined;
+      return {
+        rosterId: roster.roster_id,
+        teamName: getTeamName(owner),
+        ownerName: owner?.display_name ?? "Unassigned",
+        avatarUrl: getAvatarUrl(owner?.avatar ?? null),
+        record: getRecord(roster),
+        pointsFor: getPointsFor(roster),
+        pointsAgainst: getPointsAgainst(roster),
+      };
+    })
+    .sort((a, b) => a.teamName.localeCompare(b.teamName));
+
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-2xl flex-col gap-8">
@@ -22,17 +43,7 @@ export default function Home() {
 
         <Separator />
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>League overview</CardTitle>
-              <Badge variant="secondary">Coming soon</Badge>
-            </div>
-            <CardDescription>
-              Standings, matchups, and roster tools will show up here.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <TeamDashboard teams={teams} />
       </div>
     </div>
   );
