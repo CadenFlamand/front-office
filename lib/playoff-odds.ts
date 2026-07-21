@@ -69,11 +69,33 @@ function getMatchups(week: number): Promise<SleeperMatchup[]> {
   return fetchJson(`${SLEEPER_BASE}/league/${LEAGUE_ID}/matchups/${week}`);
 }
 
-function getProjections(season: string, week: number): Promise<SleeperProjection[]> {
+// The full-league, all-position payload here is a couple MB — over Next's
+// 2MB fetch-cache entry limit, same issue lib/sleeper.ts's getAllPlayers()
+// has for its ~14MB payload — so unlike the other fetchJson()-based calls
+// above, this is cached manually in memory instead of through Next's data
+// cache, which was silently failing to cache it at all.
+const PROJECTIONS_CACHE_TTL_MS = 60 * 60 * 1000;
+const projectionsCache = new Map<
+  string,
+  { data: SleeperProjection[]; fetchedAt: number }
+>();
+
+async function getProjections(season: string, week: number): Promise<SleeperProjection[]> {
+  const cacheKey = `${season}:${week}`;
+  const cached = projectionsCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < PROJECTIONS_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   const positionParams = PROJECTION_POSITIONS.map((pos) => `position[]=${pos}`).join("&");
-  return fetchJson(
-    `${PROJECTIONS_BASE}/${season}/${week}?season_type=regular&${positionParams}`
-  );
+  const url = `${PROJECTIONS_BASE}/${season}/${week}?season_type=regular&${positionParams}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Request failed (${res.status}): ${url}`);
+  }
+  const data = (await res.json()) as SleeperProjection[];
+  projectionsCache.set(cacheKey, { data, fetchedAt: Date.now() });
+  return data;
 }
 
 function projectionField(rec: number | undefined): "pts_ppr" | "pts_half_ppr" | "pts_std" {
