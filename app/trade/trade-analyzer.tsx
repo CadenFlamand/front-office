@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Search, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
 import type { PlayoffBucket, TeamContext } from "@/lib/team-context";
 import { useStoredRosterId } from "@/lib/team-selection";
+import { getOddsForTrade, type TradeOddsDiff } from "@/lib/trade-odds-action";
 
 const RESULT_LIMIT = 8;
 
@@ -65,6 +66,25 @@ export function TradeAnalyzer({
   const diff = receiveTotal - giveTotal;
   const hasPlayers = giveIds.length > 0 || receiveIds.length > 0;
 
+  const [odds, setOdds] = useState<TradeOddsDiff | null>(null);
+  const [isOddsPending, startOddsTransition] = useTransition();
+  const oddsRequestId = useRef(0);
+
+  useEffect(() => {
+    const requestId = ++oddsRequestId.current;
+    startOddsTransition(async () => {
+      if (!selectedRosterId || !hasPlayers) {
+        setOdds(null);
+        return;
+      }
+      const result = await getOddsForTrade(selectedRosterId, giveIds, receiveIds);
+      // A newer request may have started (and resolved) while this one was
+      // in flight — ignore this response so a stale result can't overwrite
+      // a fresher one.
+      if (requestId === oddsRequestId.current) setOdds(result);
+    });
+  }, [selectedRosterId, giveIds, receiveIds, hasPlayers, startOddsTransition]);
+
   return (
     <div className="flex flex-col gap-8">
       <TeamHeader
@@ -76,13 +96,16 @@ export function TradeAnalyzer({
 
       <div className="flex flex-col gap-3">
         {selectedTeam && hasPlayers && (
-          <TeamContextLine
-            team={selectedTeam}
-            diff={diff}
-            giveIds={giveIds}
-            receiveIds={receiveIds}
-            playersById={playersById}
-          />
+          <>
+            <TeamContextLine
+              team={selectedTeam}
+              diff={diff}
+              giveIds={giveIds}
+              receiveIds={receiveIds}
+              playersById={playersById}
+            />
+            <OddsDiffLine odds={odds} isPending={isOddsPending} />
+          </>
         )}
 
         <Verdict diff={diff} hasPlayers={hasPlayers} />
@@ -252,6 +275,50 @@ function TeamContextLine({
         {helps ? "helps" : "hurts"}
       </span>{" "}
       your path to {BUCKET_GOAL[team.bucket]}.
+    </p>
+  );
+}
+
+function OddsDiffLine({
+  odds,
+  isPending,
+}: {
+  odds: TradeOddsDiff | null;
+  isPending: boolean;
+}) {
+  if (!odds) {
+    if (isPending) {
+      return <p className="text-sm text-muted-foreground">Calculating playoff odds…</p>;
+    }
+    return null;
+  }
+
+  const beforePct = odds.before * 100;
+  const afterPct = odds.after * 100;
+  const deltaPct = afterPct - beforePct;
+  const tone = deltaPct > 0.05 ? "positive" : deltaPct < -0.05 ? "negative" : "neutral";
+  const toneClass =
+    tone === "positive"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : tone === "negative"
+        ? "text-red-600 dark:text-red-400"
+        : "text-foreground";
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      Playoff odds:{" "}
+      <span className="font-medium tabular-nums text-foreground">
+        {beforePct.toFixed(1)}%
+      </span>{" "}
+      →{" "}
+      <span className={`font-medium tabular-nums ${toneClass}`}>
+        {afterPct.toFixed(1)}%
+      </span>{" "}
+      <span className={`tabular-nums ${tone === "neutral" ? "text-muted-foreground" : toneClass}`}>
+        ({deltaPct >= 0 ? "+" : ""}
+        {deltaPct.toFixed(1)} pts)
+      </span>
+      {isPending && <span className="text-xs text-muted-foreground"> (updating…)</span>}
     </p>
   );
 }

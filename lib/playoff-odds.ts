@@ -1,8 +1,8 @@
-import { getRecord, getRosters, getTeamName, getUsers, type SleeperRoster } from "./sleeper";
+import { getRecord, getRosters, getTeamName, getUsers } from "./sleeper";
 
 // Duplicated rather than imported from lib/sleeper.ts so this module never
 // depends on (or risks changing) the pages already built on that file.
-const LEAGUE_ID = "872227487059767297";
+const LEAGUE_ID = "1385091542758203392";
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
 const PROJECTIONS_BASE = "https://api.sleeper.app/projections/nfl";
 
@@ -43,6 +43,14 @@ export interface PlayoffOddsResult {
   teamName: string;
   record: string;
   playoffOdds: number;
+}
+
+export interface GetPlayoffOddsOptions {
+  // Keyed by rosterId. When present, used in place of that team's live
+  // Sleeper starters when computing the projection-based scoring estimate —
+  // lets callers (e.g. the trade analyzer) preview odds under a hypothetical
+  // roster without touching real Sleeper data.
+  rosterOverrides?: Map<number, string[]>;
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -119,9 +127,14 @@ interface ScheduledMatchup {
 /**
  * Estimates each team's blended scoring mean/std, determines the remaining
  * schedule, and runs a Monte Carlo simulation of the rest of the regular
- * season to estimate each team's odds of making the playoffs.
+ * season to estimate each team's odds of making the playoffs. Pass
+ * `rosterOverrides` to preview odds under a hypothetical roster change; the
+ * no-args call is unaffected and reflects live Sleeper data.
  */
-export async function getPlayoffOdds(): Promise<PlayoffOddsResult[]> {
+export async function getPlayoffOdds(
+  options?: GetPlayoffOddsOptions
+): Promise<PlayoffOddsResult[]> {
+  const rosterOverrides = options?.rosterOverrides;
   const [league, rosters, users] = await Promise.all([
     getLeagueSettings(),
     getRosters(),
@@ -189,10 +202,10 @@ export async function getPlayoffOdds(): Promise<PlayoffOddsResult[]> {
     }
   }
 
-  function projectionAverage(roster: SleeperRoster): number {
-    const starters = (roster.starters ?? []).filter((id) => id && id !== "0");
-    if (starters.length === 0) return 0;
-    return starters.reduce((sum, id) => sum + (projectionsById.get(id) ?? 0), 0);
+  function projectionAverage(starters: string[] | null | undefined): number {
+    const filtered = (starters ?? []).filter((id) => id && id !== "0");
+    if (filtered.length === 0) return 0;
+    return filtered.reduce((sum, id) => sum + (projectionsById.get(id) ?? 0), 0);
   }
 
   const teams: TeamState[] = rosters.map((roster) => {
@@ -202,7 +215,8 @@ export async function getPlayoffOdds(): Promise<PlayoffOddsResult[]> {
     const weight = blendWeight(gamesPlayed);
 
     const actualAvg = mean(actualScores);
-    const projAvg = projectionAverage(roster);
+    const starters = rosterOverrides?.get(roster.roster_id) ?? roster.starters;
+    const projAvg = projectionAverage(starters);
     const simMean = weight * actualAvg + (1 - weight) * projAvg;
 
     const actualStd = gamesPlayed >= 2 ? stdDev(actualScores) : DEFAULT_STD_DEV;
