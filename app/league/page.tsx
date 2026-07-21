@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { getPlayoffOdds } from "@/lib/playoff-odds";
 import {
   getAllPlayers,
   getAvatarUrl,
@@ -23,12 +24,6 @@ import {
 export const metadata = {
   title: "League | Front Office",
 };
-
-function winPct(roster: SleeperRoster): number {
-  const { wins = 0, losses = 0, ties = 0 } = roster.settings ?? {};
-  const games = wins + losses + ties;
-  return games === 0 ? 0 : (wins + ties * 0.5) / games;
-}
 
 function initials(name: string): string {
   return name
@@ -63,18 +58,21 @@ function getBenchPlayerIds(roster: SleeperRoster): string[] {
 }
 
 export default async function LeaguePage() {
-  const [league, rosters, users, players] = await Promise.all([
+  const [league, rosters, users, players, playoffOdds] = await Promise.all([
     getLeague(),
     getRosters(),
     getUsers(),
     getAllPlayers(),
+    getPlayoffOdds(),
   ]);
 
   const usersById = new Map(users.map((user) => [user.user_id, user]));
+  const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));
 
   const sortedRosters = [...rosters].sort((a, b) => {
-    const pctDiff = winPct(b) - winPct(a);
-    if (pctDiff !== 0) return pctDiff;
+    const oddsDiff =
+      (oddsByRosterId.get(b.roster_id) ?? 0) - (oddsByRosterId.get(a.roster_id) ?? 0);
+    if (oddsDiff !== 0) return oddsDiff;
     return (b.settings?.fpts ?? 0) - (a.settings?.fpts ?? 0);
   });
 
@@ -124,7 +122,12 @@ export default async function LeaguePage() {
                           </CardDescription>
                         )}
                       </div>
-                      <Badge variant="secondary">{getRecord(roster)}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default" className="tabular-nums">
+                          {((oddsByRosterId.get(roster.roster_id) ?? 0) * 100).toFixed(1)}%
+                        </Badge>
+                        <Badge variant="secondary">{getRecord(roster)}</Badge>
+                      </div>
                     </div>
                   </div>
                 </CardHeader>

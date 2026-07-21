@@ -20,6 +20,7 @@ export interface TeamSummary {
   record: string;
   pointsFor: number;
   pointsAgainst: number;
+  playoffOdds: number;
 }
 
 const STORAGE_KEY = "front-office:my-team";
@@ -41,6 +42,22 @@ function getSnapshot(): string | null {
 function getServerSnapshot(): string | null {
   return null;
 }
+
+// Mirrors the tiering lib/team-context.ts uses for its playoff bucket
+// (first-pass thresholds, not yet calibrated against real mid-season data)
+// — duplicated here rather than imported since that module builds a whole
+// TeamContext, not just a color tier, and this component isn't wired to it.
+function oddsTone(odds: number): "positive" | "neutral" | "negative" {
+  if (odds >= 0.6) return "positive";
+  if (odds >= 0.25) return "neutral";
+  return "negative";
+}
+
+const ODDS_TONE_CLASSES: Record<ReturnType<typeof oddsTone>, string> = {
+  positive: "text-emerald-600 dark:text-emerald-400",
+  neutral: "text-foreground",
+  negative: "text-red-600 dark:text-red-400",
+};
 
 function initials(name: string): string {
   return name
@@ -86,7 +103,18 @@ export function TeamDashboard({ teams }: { teams: TeamSummary[] }) {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-6">
+          <div className="flex flex-col items-center gap-1 rounded-lg border py-4 text-center">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Playoff Odds
+            </p>
+            <p
+              className={`text-3xl font-semibold tabular-nums ${ODDS_TONE_CLASSES[oddsTone(selectedTeam.playoffOdds)]}`}
+            >
+              {(selectedTeam.playoffOdds * 100).toFixed(1)}%
+            </p>
+          </div>
+
           <div className="flex gap-8">
             <Stat label="Record" value={selectedTeam.record} />
             <Stat label="Points For" value={selectedTeam.pointsFor.toFixed(2)} />

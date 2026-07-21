@@ -1,5 +1,6 @@
 import { TeamDashboard, type TeamSummary } from "@/components/team-dashboard";
 import { Separator } from "@/components/ui/separator";
+import { getPlayoffOdds } from "@/lib/playoff-odds";
 import {
   getAvatarUrl,
   getPointsAgainst,
@@ -11,8 +12,13 @@ import {
 } from "@/lib/sleeper";
 
 export default async function Home() {
-  const [rosters, users] = await Promise.all([getRosters(), getUsers()]);
+  const [rosters, users, playoffOdds] = await Promise.all([
+    getRosters(),
+    getUsers(),
+    getPlayoffOdds(),
+  ]);
   const usersById = new Map(users.map((user) => [user.user_id, user]));
+  const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));
 
   const teams: TeamSummary[] = rosters
     .map((roster) => {
@@ -25,6 +31,7 @@ export default async function Home() {
         record: getRecord(roster),
         pointsFor: getPointsFor(roster),
         pointsAgainst: getPointsAgainst(roster),
+        playoffOdds: oddsByRosterId.get(roster.roster_id) ?? 0,
       };
     })
     .sort((a, b) => a.teamName.localeCompare(b.teamName));
