@@ -20,14 +20,55 @@ export interface TeamContext {
   rosterPlayerIds: string[];
 }
 
+// Duplicated rather than imported from lib/sleeper.ts so this module never
+// depends on (or risks changing) the pages already built on that file —
+// same rationale as lib/playoff-odds.ts's own copy of these constants.
+const LEAGUE_ID = "1385091542758203392";
+const SLEEPER_BASE = "https://api.sleeper.app/v1";
+
+interface SleeperLeagueScoring {
+  scoring_settings: { rec?: number } | null;
+}
+
+// lib/sleeper.ts's getLeague() doesn't expose scoring_settings, so this
+// fetches the same league endpoint again for just that field. Next.js
+// dedupes identical fetch()s within a request, so this doesn't cost an
+// extra round trip in practice.
+async function getLeagueScoring(): Promise<SleeperLeagueScoring> {
+  const res = await fetch(`${SLEEPER_BASE}/league/${LEAGUE_ID}`, {
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) {
+    throw new Error(`Sleeper API request failed (${res.status})`);
+  }
+  return res.json() as Promise<SleeperLeagueScoring>;
+}
+
 const STARTER_POSITIONS = ["QB", "RB", "WR", "TE"] as const;
+const STARTER_POSITION_SET = new Set<string>(STARTER_POSITIONS);
+
+function slotEligiblePositions(slot: string): string[] {
+  return slot.includes("FLEX") ? ["RB", "WR", "TE"] : [slot];
+}
 
 function countStarterSlots(rosterPositions: string[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const position of STARTER_POSITIONS) counts[position] = 0;
+
   for (const slot of rosterPositions) {
-    if (slot in counts) counts[slot] += 1;
+    // A FLEX-type slot doesn't require a specific position, so it's split
+    // proportionally across the positions it's eligible for (RB/WR/TE)
+    // rather than counted fully against each — a league with 1 FLEX slot
+    // needs "1 more flex-eligible player", not "1 more RB AND 1 more WR
+    // AND 1 more TE".
+    const eligible = slotEligiblePositions(slot).filter((position) =>
+      STARTER_POSITION_SET.has(position)
+    );
+    if (eligible.length === 0) continue;
+    const share = 1 / eligible.length;
+    for (const position of eligible) counts[position] += share;
   }
+
   return counts;
 }
 
@@ -47,13 +88,15 @@ function getPlayoffBucket(playoffOdds: number): PlayoffBucket {
 function computeThinPositions(
   rosterPlayerIds: string[],
   valuesById: Map<string, TradeablePlayer>,
-  requiredStarters: Record<string, number>
+  requiredStarters: Record<string, number>,
+  totalRosters: number
 ): string[] {
   // "Startable" = ranked within the league-wide universe of players good
-  // enough to fill every team's dedicated slots at that position (ignoring
-  // FLEX, which can be any position, to keep this simple). A player who
-  // doesn't even show up in FantasyCalc's valued pool is, by definition,
-  // not startable.
+  // enough to fill every team's dedicated slots at that position, where a
+  // FLEX-type slot's requirement is split proportionally across the
+  // positions it's eligible for (see countStarterSlots) rather than
+  // counted fully against each. A player who doesn't even show up in
+  // FantasyCalc's valued pool is, by definition, not startable.
   const startableCounts: Record<string, number> = {};
   for (const position of STARTER_POSITIONS) startableCounts[position] = 0;
 
@@ -62,7 +105,7 @@ function computeThinPositions(
     if (!player) continue;
     const threshold = requiredStarters[player.position];
     if (threshold === undefined) continue;
-    const leagueWideStartableRank = threshold * 12; // 12 teams in this league
+    const leagueWideStartableRank = threshold * totalRosters;
     if (player.positionRank <= leagueWideStartableRank) {
       startableCounts[player.position] += 1;
     }
@@ -77,11 +120,16 @@ export async function getTeamContexts(): Promise<{
   teams: TeamContext[];
   values: TradeablePlayer[];
 }> {
-  const [league, rosters, users, values, playoffOdds] = await Promise.all([
-    getLeague(),
+  const [league, leagueScoring] = await Promise.all([getLeague(), getLeagueScoring()]);
+
+  const [rosters, users, values, playoffOdds] = await Promise.all([
     getRosters(),
     getUsers(),
-    getPlayerValues(),
+    getPlayerValues({
+      totalRosters: league.total_rosters,
+      pprValue: leagueScoring.scoring_settings?.rec,
+      rosterPositions: league.roster_positions,
+    }),
     getPlayoffOdds(),
   ]);
 
@@ -105,7 +153,8 @@ export async function getTeamContexts(): Promise<{
       thinPositions: computeThinPositions(
         roster.players ?? [],
         valuesById,
-        requiredStarters
+        requiredStarters,
+        league.total_rosters
       ),
       rosterPlayerIds,
     };
