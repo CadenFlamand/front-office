@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { OddsDiffLine, TeamContextLine, Verdict } from "@/app/trade/trade-analyzer";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
 import { getTeamContexts, type TeamContext } from "@/lib/team-context";
+import { getTradeLabel } from "@/lib/trade-label";
 import { getOddsForTrade, type TradeOddsDiff } from "@/lib/trade-odds-action";
 import { decodeVerdict, type VerdictPayload } from "@/lib/verdict-share";
 
@@ -83,6 +84,8 @@ export default async function VerdictPage({
 
   const { team, givePlayers, receivePlayers, giveTotal, receiveTotal, diff, odds, playersById } =
     data;
+  const oddsDelta = odds ? odds.after - odds.before : 0;
+  const tradeLabel = getTradeLabel(diff, oddsDelta, receivePlayers);
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-10 dark:bg-black sm:px-6 sm:py-16">
@@ -96,6 +99,8 @@ export default async function VerdictPage({
         </div>
 
         <Separator />
+
+        <p className="text-center text-4xl font-bold tracking-tight sm:text-5xl">{tradeLabel}</p>
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between rounded-lg border px-4 py-3">

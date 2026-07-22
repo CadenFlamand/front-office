@@ -1,3 +1,5 @@
+import { getAllPlayers } from "./sleeper";
+
 export interface TradeablePlayer {
   sleeperId: string;
   name: string;
@@ -5,6 +7,8 @@ export interface TradeablePlayer {
   team: string | null;
   value: number;
   positionRank: number;
+  injuryStatus: string | null;
+  yearsExperience: number;
 }
 
 interface FantasyCalcEntry {
@@ -16,6 +20,14 @@ interface FantasyCalcEntry {
   };
   value: number;
   positionRank: number;
+}
+
+// lib/sleeper.ts's SleeperPlayer type doesn't declare these fields, but the
+// raw Sleeper API response includes them — accessed via this narrower local
+// type rather than widening the shared type (which is out of scope here).
+interface SleeperInjuryFields {
+  injury_status?: string | null;
+  years_exp?: number;
 }
 
 export interface FantasyCalcLeagueSettings {
@@ -65,22 +77,38 @@ export async function getPlayerValues(
     return cached.players;
   }
 
-  const res = await fetch(url, { cache: "no-store" });
+  const [res, allPlayersRaw] = await Promise.all([
+    fetch(url, { cache: "no-store" }),
+    getAllPlayers(),
+  ]);
   if (!res.ok) {
     throw new Error(`FantasyCalc request failed (${res.status})`);
   }
+  const allPlayers = allPlayersRaw as unknown as Record<string, SleeperInjuryFields>;
 
   const data = (await res.json()) as FantasyCalcEntry[];
   const players = data
     .filter((entry) => entry.player.sleeperId)
-    .map((entry) => ({
-      sleeperId: entry.player.sleeperId as string,
-      name: entry.player.name,
-      position: entry.player.position,
-      team: entry.player.maybeTeam,
-      value: entry.value,
-      positionRank: entry.positionRank,
-    }));
+    .map((entry) => {
+      const sleeperId = entry.player.sleeperId as string;
+      const sleeperPlayer: SleeperInjuryFields | undefined = allPlayers[sleeperId];
+
+      return {
+        sleeperId,
+        name: entry.player.name,
+        position: entry.player.position,
+        team: entry.player.maybeTeam,
+        value: entry.value,
+        positionRank: entry.positionRank,
+        injuryStatus: sleeperPlayer?.injury_status ?? null,
+        // Sleeper omits years_exp for essentially nothing in FantasyCalc's
+        // (skill-position, actively rostered) pool, but defaults to 0
+        // (i.e. "rookie") rather than a sentinel if it's ever missing —
+        // acceptable for a first-pass signal, per the label logic that
+        // consumes it.
+        yearsExperience: sleeperPlayer?.years_exp ?? 0,
+      };
+    });
 
   cache.set(url, { players, fetchedAt: Date.now() });
   return players;
