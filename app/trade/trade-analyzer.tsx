@@ -240,7 +240,7 @@ function countAtPositions(
   }, 0);
 }
 
-function TeamContextLine({
+export function TeamContextLine({
   team,
   diff,
   giveIds,
@@ -279,7 +279,7 @@ function TeamContextLine({
   );
 }
 
-function OddsDiffLine({
+export function OddsDiffLine({
   odds,
   isPending,
 }: {
@@ -323,7 +323,7 @@ function OddsDiffLine({
   );
 }
 
-function Verdict({ diff, hasPlayers }: { diff: number; hasPlayers: boolean }) {
+export function Verdict({ diff, hasPlayers }: { diff: number; hasPlayers: boolean }) {
   let text: string;
   let tone: "positive" | "negative" | "neutral";
 
