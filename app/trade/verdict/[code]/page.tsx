@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -7,13 +9,9 @@ import type { TradeablePlayer } from "@/lib/fantasycalc";
 import { getTeamContexts, type TeamContext } from "@/lib/team-context";
 import { getTradeLabel } from "@/lib/trade-label";
 import { getOddsForTrade, type TradeOddsDiff } from "@/lib/trade-odds-action";
-import { decodeVerdict, type VerdictPayload } from "@/lib/verdict-share";
+import { decodeVerdict } from "@/lib/verdict-share";
 
-export const metadata = {
-  title: "Trade Verdict | Front Office",
-};
-
-interface VerdictData {
+export interface VerdictData {
   team: TeamContext;
   givePlayers: TradeablePlayer[];
   receivePlayers: TradeablePlayer[];
@@ -40,7 +38,10 @@ function resolvePlayers(
   return players;
 }
 
-async function loadVerdictData(payload: VerdictPayload): Promise<VerdictData | null> {
+async function loadVerdictDataForCode(code: string): Promise<VerdictData | null> {
+  const payload = decodeVerdict(code);
+  if (!payload) return null;
+
   const [{ teams, values }, odds] = await Promise.all([
     getTeamContexts(),
     getOddsForTrade(payload.rosterId, payload.giveIds, payload.receiveIds),
@@ -69,16 +70,52 @@ async function loadVerdictData(payload: VerdictPayload): Promise<VerdictData | n
   };
 }
 
+// Both generateMetadata and the page render need this for the same
+// request (and opengraph-image.tsx needs it again for its own, separate
+// request) — without memoizing, each caller would independently re-decode
+// the code and re-run getPlayoffOdds()'s ~10k-trial simulation. Keyed by
+// the raw code string rather than a decoded payload object, since
+// React.cache() dedupes by argument identity and a freshly-decoded object
+// is never the same reference twice.
+export const getVerdictData = cache(loadVerdictDataForCode);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ code: string }>;
+}): Promise<Metadata> {
+  const { code } = await params;
+  const data = await getVerdictData(code);
+
+  if (!data) {
+    return {
+      title: "Trade Verdict | Front Office",
+      description: "This trade link isn't valid.",
+    };
+  }
+
+  const { team, diff, receivePlayers, odds } = data;
+  const oddsDelta = odds ? odds.after - odds.before : 0;
+  const label = getTradeLabel(diff, oddsDelta, receivePlayers);
+  const title = `${label} — ${team.teamName}`;
+  const description = `See how this trade moves ${team.teamName}'s value and playoff odds, from the Front Office trade analyzer.`;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description },
+  };
+}
+
 export default async function VerdictPage({
   params,
 }: {
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
-  const payload = decodeVerdict(code);
-  const data = payload ? await loadVerdictData(payload) : null;
+  const data = await getVerdictData(code);
 
-  if (!payload || !data) {
+  if (!data) {
     return <InvalidTradeLink />;
   }
 
@@ -113,8 +150,8 @@ export default async function VerdictPage({
           <TeamContextLine
             team={team}
             diff={diff}
-            giveIds={payload.giveIds}
-            receiveIds={payload.receiveIds}
+            giveIds={givePlayers.map((player) => player.sleeperId)}
+            receiveIds={receivePlayers.map((player) => player.sleeperId)}
             playersById={playersById}
           />
           <OddsDiffLine odds={odds} isPending={false} />

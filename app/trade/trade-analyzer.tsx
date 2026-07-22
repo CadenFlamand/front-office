@@ -1,14 +1,16 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Search, X } from "lucide-react";
+import { Search, Share2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
 import type { PlayoffBucket, TeamContext } from "@/lib/team-context";
 import { useStoredRosterId } from "@/lib/team-selection";
 import { getOddsForTrade, type TradeOddsDiff } from "@/lib/trade-odds-action";
+import { encodeVerdict } from "@/lib/verdict-share";
 
 const RESULT_LIMIT = 8;
 
@@ -85,6 +87,30 @@ export function TradeAnalyzer({
     });
   }, [selectedRosterId, giveIds, receiveIds, hasPlayers, startOddsTransition]);
 
+  const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
+
+  // Only ever runs from the button's onClick below — never automatically.
+  async function handleShare() {
+    if (!selectedTeam) return;
+
+    const code = encodeVerdict({ rosterId: selectedTeam.rosterId, giveIds, receiveIds });
+    const url = `${window.location.origin}/trade/verdict/${code}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Trade Verdict", url });
+      } catch {
+        // User dismissed the native share sheet or it failed — that was an
+        // explicit choice either way, so no clipboard fallback here.
+      }
+      return;
+    }
+
+    await navigator.clipboard.writeText(url);
+    setShareStatus("copied");
+    setTimeout(() => setShareStatus("idle"), 2000);
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <TeamHeader
@@ -109,6 +135,18 @@ export function TradeAnalyzer({
         )}
 
         <Verdict diff={diff} hasPlayers={hasPlayers} />
+
+        {selectedTeam && hasPlayers && (
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 />
+              Share
+            </Button>
+            {shareStatus === "copied" && (
+              <span className="text-sm text-muted-foreground">Link copied!</span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
