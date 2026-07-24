@@ -68,7 +68,7 @@ export function TradeAnalyzer({
   const giveTotal = sumValues(giveIds, playersById);
   const receiveTotal = sumValues(receiveIds, playersById);
   const diff = receiveTotal - giveTotal;
-  const hasPlayers = giveIds.length > 0 || receiveIds.length > 0;
+  const hasPlayers = giveIds.length > 0 && receiveIds.length > 0;
 
   const [odds, setOdds] = useState<TradeOddsDiff | null>(null);
   const [isOddsPending, startOddsTransition] = useTransition();

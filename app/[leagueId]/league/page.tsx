@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -64,13 +66,18 @@ export default async function LeaguePage({
 }) {
   const { leagueId } = await params;
 
-  const [league, rosters, users, players, playoffOdds] = await Promise.all([
-    getLeague(leagueId),
-    getRosters(leagueId),
-    getUsers(leagueId),
-    getAllPlayers(),
-    getPlayoffOdds(leagueId),
-  ]);
+  let league, rosters, users, players, playoffOdds;
+  try {
+    [league, rosters, users, players, playoffOdds] = await Promise.all([
+      getLeague(leagueId),
+      getRosters(leagueId),
+      getUsers(leagueId),
+      getAllPlayers(),
+      getPlayoffOdds(leagueId),
+    ]);
+  } catch {
+    notFound();
+  }
 
   const usersById = new Map(users.map((user) => [user.user_id, user]));
   const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));

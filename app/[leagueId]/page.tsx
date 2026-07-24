@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+
 import { TeamDashboard, type TeamSummary } from "@/components/team-dashboard";
 import { Separator } from "@/components/ui/separator";
 import { getPlayoffOdds } from "@/lib/playoff-odds";
@@ -18,11 +20,16 @@ export default async function TeamPickerPage({
 }) {
   const { leagueId } = await params;
 
-  const [rosters, users, playoffOdds] = await Promise.all([
-    getRosters(leagueId),
-    getUsers(leagueId),
-    getPlayoffOdds(leagueId),
-  ]);
+  let rosters, users, playoffOdds;
+  try {
+    [rosters, users, playoffOdds] = await Promise.all([
+      getRosters(leagueId),
+      getUsers(leagueId),
+      getPlayoffOdds(leagueId),
+    ]);
+  } catch {
+    notFound();
+  }
   const usersById = new Map(users.map((user) => [user.user_id, user]));
   const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));
 

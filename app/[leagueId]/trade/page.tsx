@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+
 import { Separator } from "@/components/ui/separator";
 import { getTeamContexts } from "@/lib/team-context";
 
@@ -14,7 +16,13 @@ export default async function TradePage({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
-  const { teams, values } = await getTeamContexts(leagueId);
+
+  let teams, values;
+  try {
+    ({ teams, values } = await getTeamContexts(leagueId));
+  } catch {
+    notFound();
+  }
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-10 dark:bg-black sm:px-6 sm:py-16">
