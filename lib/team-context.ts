@@ -21,9 +21,7 @@ export interface TeamContext {
 }
 
 // Duplicated rather than imported from lib/sleeper.ts so this module never
-// depends on (or risks changing) the pages already built on that file —
-// same rationale as lib/playoff-odds.ts's own copy of these constants.
-const LEAGUE_ID = "1385091542758203392";
+// depends on (or risks changing) the pages already built on that file.
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
 
 interface SleeperLeagueScoring {
@@ -34,8 +32,8 @@ interface SleeperLeagueScoring {
 // fetches the same league endpoint again for just that field. Next.js
 // dedupes identical fetch()s within a request, so this doesn't cost an
 // extra round trip in practice.
-async function getLeagueScoring(): Promise<SleeperLeagueScoring> {
-  const res = await fetch(`${SLEEPER_BASE}/league/${LEAGUE_ID}`, {
+async function getLeagueScoring(leagueId: string): Promise<SleeperLeagueScoring> {
+  const res = await fetch(`${SLEEPER_BASE}/league/${leagueId}`, {
     next: { revalidate: 3600 },
   });
   if (!res.ok) {
@@ -116,21 +114,24 @@ function computeThinPositions(
   );
 }
 
-export async function getTeamContexts(): Promise<{
+export async function getTeamContexts(leagueId: string): Promise<{
   teams: TeamContext[];
   values: TradeablePlayer[];
 }> {
-  const [league, leagueScoring] = await Promise.all([getLeague(), getLeagueScoring()]);
+  const [league, leagueScoring] = await Promise.all([
+    getLeague(leagueId),
+    getLeagueScoring(leagueId),
+  ]);
 
   const [rosters, users, values, playoffOdds] = await Promise.all([
-    getRosters(),
-    getUsers(),
+    getRosters(leagueId),
+    getUsers(leagueId),
     getPlayerValues({
       totalRosters: league.total_rosters,
       pprValue: leagueScoring.scoring_settings?.rec,
       rosterPositions: league.roster_positions,
     }),
-    getPlayoffOdds(),
+    getPlayoffOdds(leagueId),
   ]);
 
   const usersById = new Map(users.map((user) => [user.user_id, user]));

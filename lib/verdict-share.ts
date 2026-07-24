@@ -1,4 +1,5 @@
 export interface VerdictPayload {
+  leagueId: string;
   rosterId: number;
   giveIds: string[];
   receiveIds: string[];
@@ -20,8 +21,9 @@ function fromBase64Url(base64url: string): string {
 
 function isValidPayload(data: unknown): data is VerdictPayload {
   if (typeof data !== "object" || data === null) return false;
-  const { rosterId, giveIds, receiveIds } = data as Record<string, unknown>;
+  const { leagueId, rosterId, giveIds, receiveIds } = data as Record<string, unknown>;
 
+  if (typeof leagueId !== "string" || leagueId.length === 0) return false;
   if (typeof rosterId !== "number" || !Number.isInteger(rosterId)) return false;
   if (!Array.isArray(giveIds) || !giveIds.every((id) => typeof id === "string")) {
     return false;

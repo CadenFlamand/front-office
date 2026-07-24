@@ -19,9 +19,11 @@ type Side = "give" | "receive";
 export function TradeAnalyzer({
   players,
   teams,
+  leagueId,
 }: {
   players: TradeablePlayer[];
   teams: TeamContext[];
+  leagueId: string;
 }) {
   const [giveIds, setGiveIds] = useState<string[]>([]);
   const [receiveIds, setReceiveIds] = useState<string[]>([]);
@@ -29,7 +31,7 @@ export function TradeAnalyzer({
   // For this session only: if no team is saved via the home page's team
   // picker, let the user pick one here without persisting it.
   const [sessionRosterId, setSessionRosterId] = useState<number | null>(null);
-  const storedRosterId = useStoredRosterId();
+  const storedRosterId = useStoredRosterId(leagueId);
   const selectedRosterId = storedRosterId ?? sessionRosterId;
   const selectedTeam = teams.find((team) => team.rosterId === selectedRosterId);
 
@@ -79,13 +81,13 @@ export function TradeAnalyzer({
         setOdds(null);
         return;
       }
-      const result = await getOddsForTrade(selectedRosterId, giveIds, receiveIds);
+      const result = await getOddsForTrade(leagueId, selectedRosterId, giveIds, receiveIds);
       // A newer request may have started (and resolved) while this one was
       // in flight — ignore this response so a stale result can't overwrite
       // a fresher one.
       if (requestId === oddsRequestId.current) setOdds(result);
     });
-  }, [selectedRosterId, giveIds, receiveIds, hasPlayers, startOddsTransition]);
+  }, [leagueId, selectedRosterId, giveIds, receiveIds, hasPlayers, startOddsTransition]);
 
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
 
@@ -93,7 +95,12 @@ export function TradeAnalyzer({
   async function handleShare() {
     if (!selectedTeam) return;
 
-    const code = encodeVerdict({ rosterId: selectedTeam.rosterId, giveIds, receiveIds });
+    const code = encodeVerdict({
+      leagueId,
+      rosterId: selectedTeam.rosterId,
+      giveIds,
+      receiveIds,
+    });
     const url = `${window.location.origin}/trade/verdict/${code}`;
 
     if (navigator.share) {

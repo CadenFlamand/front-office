@@ -4,8 +4,13 @@ export const metadata = {
   title: "Playoff Odds | Front Office",
 };
 
-export default async function OddsPage() {
-  const results = await getPlayoffOdds();
+export default async function OddsPage({
+  params,
+}: {
+  params: Promise<{ leagueId: string }>;
+}) {
+  const { leagueId } = await params;
+  const results = await getPlayoffOdds(leagueId);
 
   return (
     <div className="flex flex-1 flex-col items-center px-6 py-16">

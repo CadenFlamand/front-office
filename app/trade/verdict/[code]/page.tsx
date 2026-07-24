@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { OddsDiffLine, TeamContextLine, Verdict } from "@/app/trade/trade-analyzer";
+import { OddsDiffLine, TeamContextLine, Verdict } from "@/app/[leagueId]/trade/trade-analyzer";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
 import { getTeamContexts, type TeamContext } from "@/lib/team-context";
 import { getTradeLabel } from "@/lib/trade-label";
@@ -12,6 +12,7 @@ import { getOddsForTrade, type TradeOddsDiff } from "@/lib/trade-odds-action";
 import { decodeVerdict } from "@/lib/verdict-share";
 
 export interface VerdictData {
+  leagueId: string;
   team: TeamContext;
   givePlayers: TradeablePlayer[];
   receivePlayers: TradeablePlayer[];
@@ -43,8 +44,8 @@ async function loadVerdictDataForCode(code: string): Promise<VerdictData | null>
   if (!payload) return null;
 
   const [{ teams, values }, odds] = await Promise.all([
-    getTeamContexts(),
-    getOddsForTrade(payload.rosterId, payload.giveIds, payload.receiveIds),
+    getTeamContexts(payload.leagueId),
+    getOddsForTrade(payload.leagueId, payload.rosterId, payload.giveIds, payload.receiveIds),
   ]);
 
   const team = teams.find((t) => t.rosterId === payload.rosterId);
@@ -59,6 +60,7 @@ async function loadVerdictDataForCode(code: string): Promise<VerdictData | null>
   const receiveTotal = receivePlayers.reduce((sum, player) => sum + player.value, 0);
 
   return {
+    leagueId: payload.leagueId,
     team,
     givePlayers,
     receivePlayers,
@@ -119,8 +121,17 @@ export default async function VerdictPage({
     return <InvalidTradeLink />;
   }
 
-  const { team, givePlayers, receivePlayers, giveTotal, receiveTotal, diff, odds, playersById } =
-    data;
+  const {
+    leagueId,
+    team,
+    givePlayers,
+    receivePlayers,
+    giveTotal,
+    receiveTotal,
+    diff,
+    odds,
+    playersById,
+  } = data;
   const oddsDelta = odds ? odds.after - odds.before : 0;
   const tradeLabel = getTradeLabel(diff, oddsDelta, receivePlayers);
 
@@ -165,7 +176,7 @@ export default async function VerdictPage({
         </div>
 
         <Link
-          href="/trade"
+          href={`/${leagueId}/trade`}
           className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Try your own trade →
@@ -229,7 +240,7 @@ function InvalidTradeLink() {
           It may be malformed, or reference a team or player that no longer exists.
         </p>
         <Link
-          href="/trade"
+          href="/"
           className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Try your own trade →

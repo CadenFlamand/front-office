@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,14 @@ export interface TeamSummary {
   playoffOdds: number;
 }
 
-const STORAGE_KEY = "front-office:my-team";
 const TEAM_CHANGE_EVENT = "front-office:team-change";
+
+// Scoped by leagueId so picking a team in one league doesn't leak into
+// another league's session. Must match the key built by
+// lib/team-selection.ts.
+function buildStorageKey(leagueId: string): string {
+  return `front-office:my-team:${leagueId}`;
+}
 
 function subscribe(callback: () => void) {
   window.addEventListener("storage", callback);
@@ -33,10 +39,6 @@ function subscribe(callback: () => void) {
     window.removeEventListener("storage", callback);
     window.removeEventListener(TEAM_CHANGE_EVENT, callback);
   };
-}
-
-function getSnapshot(): string | null {
-  return window.localStorage.getItem(STORAGE_KEY);
 }
 
 function getServerSnapshot(): string | null {
@@ -69,17 +71,28 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-export function TeamDashboard({ teams }: { teams: TeamSummary[] }) {
+export function TeamDashboard({
+  teams,
+  leagueId,
+}: {
+  teams: TeamSummary[];
+  leagueId: string;
+}) {
+  const storageKey = buildStorageKey(leagueId);
+  const getSnapshot = useCallback(
+    () => window.localStorage.getItem(storageKey),
+    [storageKey]
+  );
   const stored = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const selectedId = stored ? Number(stored) : null;
 
   function selectTeam(rosterId: number) {
-    window.localStorage.setItem(STORAGE_KEY, String(rosterId));
+    window.localStorage.setItem(storageKey, String(rosterId));
     window.dispatchEvent(new Event(TEAM_CHANGE_EVENT));
   }
 
   function changeTeam() {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(storageKey);
     window.dispatchEvent(new Event(TEAM_CHANGE_EVENT));
   }
 

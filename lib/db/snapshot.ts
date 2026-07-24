@@ -34,30 +34,15 @@ export interface CaptureSnapshotResult {
  * team in the league, upserting one row per team into roster_snapshots.
  * Safe to call more than once for the same week — rows are keyed on
  * (league_id, roster_id, season, week) and get replaced, not duplicated.
- *
- * getRosters()/getLeague()/getPlayoffOdds() are still hardcoded to a
- * single league (see lib/sleeper.ts's own LEAGUE_ID), so `leagueId` is
- * validated against the league those calls actually return rather than
- * used to select which league gets fetched — passing any other ID throws
- * instead of silently mislabeling that league's data. Real multi-league
- * support is a bigger, separate change for later.
  */
 export async function captureSnapshot(leagueId: string): Promise<CaptureSnapshotResult> {
   const [league, rosters, users, odds, week] = await Promise.all([
-    getLeague(),
-    getRosters(),
-    getUsers(),
-    getPlayoffOdds(),
+    getLeague(leagueId),
+    getRosters(leagueId),
+    getUsers(leagueId),
+    getPlayoffOdds(leagueId),
     getCurrentWeek(),
   ]);
-
-  if (league.league_id !== leagueId) {
-    throw new Error(
-      `captureSnapshot("${leagueId}") doesn't match the app's configured league ` +
-        `("${league.league_id}") — getRosters()/getLeague()/getPlayoffOdds() only fetch ` +
-        `that one hardcoded league today.`
-    );
-  }
 
   const usersById = new Map(users.map((user) => [user.user_id, user]));
   const oddsByRosterId = new Map(odds.map((o) => [o.rosterId, o.playoffOdds]));
@@ -73,7 +58,7 @@ export async function captureSnapshot(leagueId: string): Promise<CaptureSnapshot
         INSERT INTO roster_snapshots
           (league_id, roster_id, team_name, season, week, starters, wins, losses, ties, playoff_odds)
         VALUES (
-          ${league.league_id},
+          ${leagueId},
           ${roster.roster_id},
           ${getTeamName(owner)},
           ${league.season},
@@ -98,7 +83,7 @@ export async function captureSnapshot(leagueId: string): Promise<CaptureSnapshot
   );
 
   return {
-    leagueId: league.league_id,
+    leagueId,
     season: league.season,
     week,
     teamsCaptured: rosters.length,

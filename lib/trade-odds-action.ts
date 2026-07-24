@@ -128,11 +128,15 @@ function assignLineup(startingSlots: string[], candidates: Candidate[]): string[
  * they'd actually earn a starting spot.
  */
 export async function getOddsForTrade(
+  leagueId: string,
   rosterId: number,
   giveIds: string[],
   receiveIds: string[]
 ): Promise<TradeOddsDiff | null> {
-  const [rosters, league] = await Promise.all([getRosters(), getLeague()]);
+  const [rosters, league] = await Promise.all([
+    getRosters(leagueId),
+    getLeague(leagueId),
+  ]);
   const roster = rosters.find((r) => r.roster_id === rosterId);
   if (!roster) return null;
 
@@ -162,8 +166,8 @@ export async function getOddsForTrade(
   const rosterOverrides = new Map([[rosterId, hypotheticalStarters]]);
 
   const [baseline, hypothetical] = await Promise.all([
-    getPlayoffOdds(),
-    getPlayoffOdds({ rosterOverrides }),
+    getPlayoffOdds(leagueId),
+    getPlayoffOdds(leagueId, { rosterOverrides }),
   ]);
 
   const before = baseline.find((t) => t.rosterId === rosterId)?.playoffOdds;

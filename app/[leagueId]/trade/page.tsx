@@ -8,8 +8,13 @@ export const metadata = {
   description: "Compare trade value between two sides using FantasyCalc.",
 };
 
-export default async function TradePage() {
-  const { teams, values } = await getTeamContexts();
+export default async function TradePage({
+  params,
+}: {
+  params: Promise<{ leagueId: string }>;
+}) {
+  const { leagueId } = await params;
+  const { teams, values } = await getTeamContexts(leagueId);
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-10 dark:bg-black sm:px-6 sm:py-16">
@@ -24,7 +29,7 @@ export default async function TradePage() {
 
         <Separator />
 
-        <TradeAnalyzer players={values} teams={teams} />
+        <TradeAnalyzer players={values} teams={teams} leagueId={leagueId} />
       </main>
     </div>
   );

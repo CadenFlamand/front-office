@@ -1,4 +1,3 @@
-const LEAGUE_ID = "1385091542758203392";
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
 
 export interface SleeperLeague {
@@ -54,20 +53,20 @@ async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function getLeague(): Promise<SleeperLeague> {
-  return fetchJson(`${SLEEPER_BASE}/league/${LEAGUE_ID}`, {
+export function getLeague(leagueId: string): Promise<SleeperLeague> {
+  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`, {
     next: { revalidate: 3600 },
   });
 }
 
-export function getRosters(): Promise<SleeperRoster[]> {
-  return fetchJson(`${SLEEPER_BASE}/league/${LEAGUE_ID}/rosters`, {
+export function getRosters(leagueId: string): Promise<SleeperRoster[]> {
+  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}/rosters`, {
     next: { revalidate: 3600 },
   });
 }
 
-export function getUsers(): Promise<SleeperUser[]> {
-  return fetchJson(`${SLEEPER_BASE}/league/${LEAGUE_ID}/users`, {
+export function getUsers(leagueId: string): Promise<SleeperUser[]> {
+  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}/users`, {
     next: { revalidate: 3600 },
   });
 }

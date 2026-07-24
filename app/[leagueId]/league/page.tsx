@@ -57,13 +57,19 @@ function getBenchPlayerIds(roster: SleeperRoster): string[] {
   return (roster.players ?? []).filter((id) => !starters.has(id));
 }
 
-export default async function LeaguePage() {
+export default async function LeaguePage({
+  params,
+}: {
+  params: Promise<{ leagueId: string }>;
+}) {
+  const { leagueId } = await params;
+
   const [league, rosters, users, players, playoffOdds] = await Promise.all([
-    getLeague(),
-    getRosters(),
-    getUsers(),
+    getLeague(leagueId),
+    getRosters(leagueId),
+    getUsers(leagueId),
     getAllPlayers(),
-    getPlayoffOdds(),
+    getPlayoffOdds(leagueId),
   ]);
 
   const usersById = new Map(users.map((user) => [user.user_id, user]));

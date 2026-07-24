@@ -1,8 +1,5 @@
 import { getRecord, getRosters, getTeamName, getUsers } from "./sleeper";
 
-// Duplicated rather than imported from lib/sleeper.ts so this module never
-// depends on (or risks changing) the pages already built on that file.
-const LEAGUE_ID = "1385091542758203392";
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
 const PROJECTIONS_BASE = "https://api.sleeper.app/projections/nfl";
 
@@ -61,12 +58,12 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function getLeagueSettings(): Promise<SleeperLeagueSettings> {
-  return fetchJson(`${SLEEPER_BASE}/league/${LEAGUE_ID}`);
+function getLeagueSettings(leagueId: string): Promise<SleeperLeagueSettings> {
+  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`);
 }
 
-function getMatchups(week: number): Promise<SleeperMatchup[]> {
-  return fetchJson(`${SLEEPER_BASE}/league/${LEAGUE_ID}/matchups/${week}`);
+function getMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> {
+  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}/matchups/${week}`);
 }
 
 // The full-league, all-position payload here is a couple MB — over Next's
@@ -150,17 +147,18 @@ interface ScheduledMatchup {
  * Estimates each team's blended scoring mean/std, determines the remaining
  * schedule, and runs a Monte Carlo simulation of the rest of the regular
  * season to estimate each team's odds of making the playoffs. Pass
- * `rosterOverrides` to preview odds under a hypothetical roster change; the
- * no-args call is unaffected and reflects live Sleeper data.
+ * `rosterOverrides` to preview odds under a hypothetical roster change;
+ * omitting it reflects live Sleeper data as-is.
  */
 export async function getPlayoffOdds(
+  leagueId: string,
   options?: GetPlayoffOddsOptions
 ): Promise<PlayoffOddsResult[]> {
   const rosterOverrides = options?.rosterOverrides;
   const [league, rosters, users] = await Promise.all([
-    getLeagueSettings(),
-    getRosters(),
-    getUsers(),
+    getLeagueSettings(leagueId),
+    getRosters(leagueId),
+    getUsers(leagueId),
   ]);
 
   const usersById = new Map(users.map((user) => [user.user_id, user]));
@@ -171,7 +169,9 @@ export async function getPlayoffOdds(
       : MAX_REGULAR_SEASON_WEEKS;
 
   const weekNumbers = Array.from({ length: regularSeasonWeeks }, (_, i) => i + 1);
-  const matchupsByWeek = await Promise.all(weekNumbers.map((week) => getMatchups(week)));
+  const matchupsByWeek = await Promise.all(
+    weekNumbers.map((week) => getMatchups(leagueId, week))
+  );
 
   const actualScoresByRoster = new Map<number, number[]>();
   for (const roster of rosters) actualScoresByRoster.set(roster.roster_id, []);
