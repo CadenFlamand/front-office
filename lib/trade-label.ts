@@ -7,7 +7,9 @@ export type TradeLabel = "Roster Tune-Up" | "Value Add" | "Win-Now Swing" | "Blo
 // swap OR a real odds swing is enough on its own), and "small" only if
 // both signals are quiet.
 const SMALL_VALUE_DIFF_THRESHOLD = 1000;
-const LARGE_VALUE_DIFF_THRESHOLD = 4000;
+// Exported for lib/trade-verdict.ts's value-gap caution, which fires off the
+// same "this is a big value swing" magnitude rather than redefining its own.
+export const LARGE_VALUE_DIFF_THRESHOLD = 4000;
 const SMALL_ODDS_DELTA_THRESHOLD = 0.03; // 3 percentage points
 const LARGE_ODDS_DELTA_THRESHOLD = 0.1; // 10 percentage points
 

@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
 
-import { getTradeLabel, type TradeLabel } from "@/lib/trade-label";
+import type { TradeLabel } from "@/lib/trade-label";
 
-import { getVerdictData } from "./page";
+import { loadVerdictView } from "./page";
 
 export const alt = "Front Office trade verdict";
 export const size = { width: 1200, height: 630 };
@@ -45,9 +45,9 @@ export default async function Image({
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
-  const data = await getVerdictData(code);
+  const view = await loadVerdictView(code);
 
-  if (!data) {
+  if (!view) {
     return new ImageResponse(
       (
         <div style={CARD_STYLE}>
@@ -63,9 +63,8 @@ export default async function Image({
     );
   }
 
-  const { team, diff, receivePlayers, odds } = data;
-  const oddsDelta = odds ? odds.after - odds.before : 0;
-  const label = getTradeLabel(diff, oddsDelta, receivePlayers);
+  const { team, payload } = view;
+  const label = payload.tradeLabel;
   const emoji = LABEL_EMOJI[label];
 
   return new ImageResponse(

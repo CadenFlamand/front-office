@@ -1,85 +1,110 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cache } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { OddsDiffLine, TeamContextLine, Verdict } from "@/app/[leagueId]/trade/trade-analyzer";
-import type { TradeablePlayer } from "@/lib/fantasycalc";
-import { getTeamContexts, type TeamContext } from "@/lib/team-context";
-import { getTradeLabel } from "@/lib/trade-label";
-import { getOddsForTrade, type TradeOddsDiff } from "@/lib/trade-odds-action";
-import { decodeVerdict } from "@/lib/verdict-share";
+import {
+  getAllPlayers,
+  getPlayerName,
+  getRecord,
+  getRosters,
+  getTeamName,
+  getUsers,
+  type PlayersById,
+} from "@/lib/sleeper";
+import type { TeamContext } from "@/lib/team-context";
+import { decodeVerdict, type TradeSidePlayer, type VerdictPayload } from "@/lib/verdict-share";
 
-export interface VerdictData {
+interface DisplayPlayer {
+  sleeperId: string;
+  name: string;
+  position: string;
+  team: string | null;
+  value: number;
+}
+
+export interface VerdictView {
   leagueId: string;
   team: TeamContext;
-  givePlayers: TradeablePlayer[];
-  receivePlayers: TradeablePlayer[];
+  givePlayers: DisplayPlayer[];
+  receivePlayers: DisplayPlayer[];
   giveTotal: number;
   receiveTotal: number;
-  diff: number;
-  odds: TradeOddsDiff | null;
-  playersById: Map<string, TradeablePlayer>;
+  payload: VerdictPayload;
 }
 
-// Resolves every ID to a real player, or null if any single one doesn't
-// exist — a partially-resolved trade (silently dropping missing players)
-// would be misleading, so an unresolvable ID invalidates the whole link.
-function resolvePlayers(
-  ids: string[],
-  playersById: Map<string, TradeablePlayer>
-): TradeablePlayer[] | null {
-  const players: TradeablePlayer[] = [];
-  for (const id of ids) {
-    const player = playersById.get(id);
+// Resolves each frozen {sleeperId, value} into something displayable, or
+// null if any single ID doesn't exist in Sleeper's player database anymore
+// — a partially-resolved trade (silently dropping missing players) would be
+// misleading, so an unresolvable ID invalidates the whole link.
+function resolveDisplayPlayers(
+  items: TradeSidePlayer[],
+  allPlayers: PlayersById
+): DisplayPlayer[] | null {
+  const resolved: DisplayPlayer[] = [];
+  for (const item of items) {
+    const player = allPlayers[item.sleeperId];
     if (!player) return null;
-    players.push(player);
+    resolved.push({
+      sleeperId: item.sleeperId,
+      name: getPlayerName(item.sleeperId, allPlayers),
+      position: player.position ?? "-",
+      team: player.team ?? null,
+      value: item.value,
+    });
   }
-  return players;
+  return resolved;
 }
 
-async function loadVerdictDataForCode(code: string): Promise<VerdictData | null> {
+// Odds, trade value, the trade label, and the verdict itself all come
+// straight from the frozen payload — captured once at share time in
+// trade-analyzer.tsx's handleShare() (see lib/verdict-share.ts). Nothing
+// here re-runs getOddsForTrade()/computeTradeVerdict()/the Monte Carlo
+// simulation. Only cosmetic reference data (player name/position, team
+// name/record) resolves live, via getAllPlayers() and a plain roster/user
+// lookup — both already cached at the lib layer, so there's no real
+// simulation work left to dedupe across generateMetadata/the page/
+// opengraph-image, and this doesn't need React.cache() wrapping like the
+// old simulation-backed version did.
+export async function loadVerdictView(code: string): Promise<VerdictView | null> {
   const payload = decodeVerdict(code);
   if (!payload) return null;
 
-  const [{ teams, values }, odds] = await Promise.all([
-    getTeamContexts(payload.leagueId),
-    getOddsForTrade(payload.leagueId, payload.rosterId, payload.giveIds, payload.receiveIds),
+  const [rosters, users, allPlayers] = await Promise.all([
+    getRosters(payload.leagueId),
+    getUsers(payload.leagueId),
+    getAllPlayers(),
   ]);
 
-  const team = teams.find((t) => t.rosterId === payload.rosterId);
-  if (!team) return null;
+  const roster = rosters.find((r) => r.roster_id === payload.rosterId);
+  if (!roster) return null;
+  const owner = roster.owner_id ? users.find((u) => u.user_id === roster.owner_id) : undefined;
 
-  const playersById = new Map(values.map((player) => [player.sleeperId, player]));
-  const givePlayers = resolvePlayers(payload.giveIds, playersById);
-  const receivePlayers = resolvePlayers(payload.receiveIds, playersById);
+  const givePlayers = resolveDisplayPlayers(payload.give, allPlayers);
+  const receivePlayers = resolveDisplayPlayers(payload.receive, allPlayers);
   if (!givePlayers || !receivePlayers) return null;
 
-  const giveTotal = givePlayers.reduce((sum, player) => sum + player.value, 0);
-  const receiveTotal = receivePlayers.reduce((sum, player) => sum + player.value, 0);
+  const team: TeamContext = {
+    rosterId: payload.rosterId,
+    teamName: getTeamName(owner),
+    ownerName: owner?.display_name ?? "Unassigned",
+    record: getRecord(roster),
+    bucket: payload.team.bucket,
+    thinPositions: payload.team.thinPositions,
+    rosterPlayerIds: [],
+  };
 
   return {
     leagueId: payload.leagueId,
     team,
     givePlayers,
     receivePlayers,
-    giveTotal,
-    receiveTotal,
-    diff: receiveTotal - giveTotal,
-    odds,
-    playersById,
+    giveTotal: givePlayers.reduce((sum, player) => sum + player.value, 0),
+    receiveTotal: receivePlayers.reduce((sum, player) => sum + player.value, 0),
+    payload,
   };
 }
-
-// Both generateMetadata and the page render need this for the same
-// request (and opengraph-image.tsx needs it again for its own, separate
-// request) — without memoizing, each caller would independently re-decode
-// the code and re-run getPlayoffOdds()'s ~10k-trial simulation. Keyed by
-// the raw code string rather than a decoded payload object, since
-// React.cache() dedupes by argument identity and a freshly-decoded object
-// is never the same reference twice.
-export const getVerdictData = cache(loadVerdictDataForCode);
 
 export async function generateMetadata({
   params,
@@ -87,20 +112,17 @@ export async function generateMetadata({
   params: Promise<{ code: string }>;
 }): Promise<Metadata> {
   const { code } = await params;
-  const data = await getVerdictData(code);
+  const view = await loadVerdictView(code);
 
-  if (!data) {
+  if (!view) {
     return {
       title: "Trade Verdict | Front Office",
       description: "This trade link isn't valid.",
     };
   }
 
-  const { team, diff, receivePlayers, odds } = data;
-  const oddsDelta = odds ? odds.after - odds.before : 0;
-  const label = getTradeLabel(diff, oddsDelta, receivePlayers);
-  const title = `${label} — ${team.teamName}`;
-  const description = `See how this trade moves ${team.teamName}'s value and playoff odds, from the Front Office trade analyzer.`;
+  const title = `${view.payload.tradeLabel} — ${view.team.teamName}`;
+  const description = `See how this trade moves ${view.team.teamName}'s value and playoff odds, from the Front Office trade analyzer.`;
 
   return {
     title,
@@ -115,25 +137,13 @@ export default async function VerdictPage({
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
-  const data = await getVerdictData(code);
+  const view = await loadVerdictView(code);
 
-  if (!data) {
+  if (!view) {
     return <InvalidTradeLink />;
   }
 
-  const {
-    leagueId,
-    team,
-    givePlayers,
-    receivePlayers,
-    giveTotal,
-    receiveTotal,
-    diff,
-    odds,
-    playersById,
-  } = data;
-  const oddsDelta = odds ? odds.after - odds.before : 0;
-  const tradeLabel = getTradeLabel(diff, oddsDelta, receivePlayers);
+  const { leagueId, team, givePlayers, receivePlayers, giveTotal, receiveTotal, payload } = view;
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-10 dark:bg-black sm:px-6 sm:py-16">
@@ -148,7 +158,9 @@ export default async function VerdictPage({
 
         <Separator />
 
-        <p className="text-center text-4xl font-bold tracking-tight sm:text-5xl">{tradeLabel}</p>
+        <p className="text-center text-4xl font-bold tracking-tight sm:text-5xl">
+          {payload.tradeLabel}
+        </p>
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between rounded-lg border px-4 py-3">
@@ -158,16 +170,10 @@ export default async function VerdictPage({
             </div>
           </div>
 
-          <TeamContextLine
-            team={team}
-            diff={diff}
-            giveIds={givePlayers.map((player) => player.sleeperId)}
-            receiveIds={receivePlayers.map((player) => player.sleeperId)}
-            playersById={playersById}
-          />
-          <OddsDiffLine odds={odds} isPending={false} />
+          <TeamContextLine team={team} verdict={payload.verdict} />
+          <OddsDiffLine odds={payload.odds} tone={payload.verdict.tone} isPending={false} />
 
-          <Verdict diff={diff} hasPlayers />
+          <Verdict verdict={payload.verdict} hasPlayers isPending={false} />
         </div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -192,7 +198,7 @@ function PlayerListCard({
   total,
 }: {
   title: string;
-  players: TradeablePlayer[];
+  players: DisplayPlayer[];
   total: number;
 }) {
   return (

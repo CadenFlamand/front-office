@@ -9,7 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
 import type { PlayoffBucket, TeamContext } from "@/lib/team-context";
 import { useStoredRosterId } from "@/lib/team-selection";
+import { getTradeLabel } from "@/lib/trade-label";
 import { getOddsForTrade, type TradeOddsDiff } from "@/lib/trade-odds-action";
+import { computeTradeVerdict, type TradeVerdict, type VerdictTone } from "@/lib/trade-verdict";
 import { encodeVerdict } from "@/lib/verdict-share";
 
 const RESULT_LIMIT = 8;
@@ -89,17 +91,36 @@ export function TradeAnalyzer({
     });
   }, [leagueId, selectedRosterId, giveIds, receiveIds, hasPlayers, startOddsTransition]);
 
+  const verdict = useMemo(() => {
+    if (!selectedTeam || !odds) return null;
+    return computeTradeVerdict({ diff, odds, team: selectedTeam, giveIds, receiveIds, playersById });
+  }, [selectedTeam, odds, diff, giveIds, receiveIds, playersById]);
+
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
 
   // Only ever runs from the button's onClick below — never automatically.
+  // Freezes everything simulation/value-derived at this exact moment (odds,
+  // diff, trade label, the full verdict) by reusing what's already resolved
+  // in state, rather than letting the shared link re-derive its own numbers
+  // on every future page load — see lib/verdict-share.ts.
   async function handleShare() {
-    if (!selectedTeam) return;
+    if (!selectedTeam || !odds || !verdict) return;
+
+    const receivePlayers = receiveIds
+      .map((id) => playersById.get(id))
+      .filter((player): player is TradeablePlayer => player !== undefined);
+    const tradeLabel = getTradeLabel(diff, odds.after - odds.before, receivePlayers);
 
     const code = encodeVerdict({
       leagueId,
       rosterId: selectedTeam.rosterId,
-      giveIds,
-      receiveIds,
+      give: giveIds.map((id) => ({ sleeperId: id, value: playersById.get(id)?.value ?? 0 })),
+      receive: receiveIds.map((id) => ({ sleeperId: id, value: playersById.get(id)?.value ?? 0 })),
+      diff,
+      odds,
+      tradeLabel,
+      team: { bucket: selectedTeam.bucket, thinPositions: selectedTeam.thinPositions },
+      verdict,
     });
     const url = `${window.location.origin}/trade/verdict/${code}`;
 
@@ -128,22 +149,16 @@ export function TradeAnalyzer({
       />
 
       <div className="flex flex-col gap-3">
-        {selectedTeam && hasPlayers && (
+        {selectedTeam && hasPlayers && odds && verdict && (
           <>
-            <TeamContextLine
-              team={selectedTeam}
-              diff={diff}
-              giveIds={giveIds}
-              receiveIds={receiveIds}
-              playersById={playersById}
-            />
-            <OddsDiffLine odds={odds} isPending={isOddsPending} />
+            <TeamContextLine team={selectedTeam} verdict={verdict} />
+            <OddsDiffLine odds={odds} tone={verdict.tone} isPending={isOddsPending} />
           </>
         )}
 
-        <Verdict diff={diff} hasPlayers={hasPlayers} />
+        <Verdict verdict={verdict} hasPlayers={hasPlayers} isPending={isOddsPending} />
 
-        {selectedTeam && hasPlayers && (
+        {selectedTeam && hasPlayers && odds && verdict && (
           <div className="flex items-center justify-center gap-2">
             <Button variant="outline" size="sm" onClick={handleShare}>
               <Share2 />
@@ -247,62 +262,13 @@ const BUCKET_GOAL: Record<PlayoffBucket, string> = {
   "Playoff Hopeful": "a late push",
 };
 
-// Strategy framing per bucket (this is redraft, not dynasty, so a bad record
-// means "chase upside for the rest of this season," not "rebuild for next
-// year"):
-//   Favorite:  favor proven/consistent production, avoid unnecessary volatility.
-//   Contender: same lean, but open to a calculated risk if it fixes a real hole.
-//   Hopeful:   favor ceiling over floor — a safe-but-capped player doesn't move
-//              the needle for a team unlikely to make the playoffs.
-//
-// The current data has no per-player ceiling/floor or volatility signal, so
-// this is only expressed as a simple tie-break between "did the trade win on
-// raw value" and "did it fix or worsen a real roster hole" — not a full
-// player-level model.
-function tradeHelpsTeam(
-  bucket: PlayoffBucket,
-  diff: number,
-  holeChange: number
-): boolean {
-  if (holeChange > 0 && diff >= 0) return true;
-  if (holeChange < 0 && diff <= 0) return false;
-  if (holeChange !== 0) {
-    if (bucket === "Playoff Hopeful") return holeChange > 0;
-    if (bucket === "Playoff Favorite") return diff >= 0;
-    return diff >= 0 || holeChange > 0;
-  }
-  return diff >= 0;
-}
-
-function countAtPositions(
-  ids: string[],
-  positions: Set<string>,
-  playersById: Map<string, TradeablePlayer>
-): number {
-  return ids.reduce((count, id) => {
-    const player = playersById.get(id);
-    return player && positions.has(player.position) ? count + 1 : count;
-  }, 0);
-}
-
 export function TeamContextLine({
   team,
-  diff,
-  giveIds,
-  receiveIds,
-  playersById,
+  verdict,
 }: {
   team: TeamContext;
-  diff: number;
-  giveIds: string[];
-  receiveIds: string[];
-  playersById: Map<string, TradeablePlayer>;
+  verdict: TradeVerdict;
 }) {
-  const thinPositions = useMemo(() => new Set(team.thinPositions), [team]);
-  const holeChange =
-    countAtPositions(receiveIds, thinPositions, playersById) -
-    countAtPositions(giveIds, thinPositions, playersById);
-  const helps = tradeHelpsTeam(team.bucket, diff, holeChange);
   const thinSuffix =
     team.thinPositions.length > 0 ? ` thin at ${team.thinPositions.join("/")}` : "";
 
@@ -312,12 +278,12 @@ export function TeamContextLine({
       {thinSuffix}, this trade{" "}
       <span
         className={
-          helps
+          verdict.helps
             ? "font-medium text-emerald-600 dark:text-emerald-400"
             : "font-medium text-red-600 dark:text-red-400"
         }
       >
-        {helps ? "helps" : "hurts"}
+        {verdict.helps ? "helps" : "hurts"}
       </span>{" "}
       your path to {BUCKET_GOAL[team.bucket]}.
     </p>
@@ -326,22 +292,16 @@ export function TeamContextLine({
 
 export function OddsDiffLine({
   odds,
+  tone,
   isPending,
 }: {
-  odds: TradeOddsDiff | null;
+  odds: TradeOddsDiff;
+  tone: VerdictTone;
   isPending: boolean;
 }) {
-  if (!odds) {
-    if (isPending) {
-      return <p className="text-sm text-muted-foreground">Calculating playoff odds…</p>;
-    }
-    return null;
-  }
-
   const beforePct = odds.before * 100;
   const afterPct = odds.after * 100;
   const deltaPct = afterPct - beforePct;
-  const tone = deltaPct > 0.05 ? "positive" : deltaPct < -0.05 ? "negative" : "neutral";
   const toneClass =
     tone === "positive"
       ? "text-emerald-600 dark:text-emerald-400"
@@ -368,27 +328,34 @@ export function OddsDiffLine({
   );
 }
 
-export function Verdict({ diff, hasPlayers }: { diff: number; hasPlayers: boolean }) {
-  let text: string;
-  let tone: "positive" | "negative" | "neutral";
+export function Verdict({
+  verdict,
+  hasPlayers,
+  isPending,
+}: {
+  verdict: TradeVerdict | null;
+  hasPlayers: boolean;
+  isPending: boolean;
+}) {
+  let headline: string;
+  let tone: VerdictTone;
 
   if (!hasPlayers) {
-    text = "Add players to both sides to see the verdict.";
+    headline = "Add players to both sides to see the verdict.";
     tone = "neutral";
-  } else if (diff > 0) {
-    text = `You gain +${diff.toLocaleString()} value`;
-    tone = "positive";
-  } else if (diff < 0) {
-    text = `This trade favors the other team by ${Math.abs(diff).toLocaleString()}`;
-    tone = "negative";
+  } else if (verdict) {
+    headline = verdict.headline;
+    tone = verdict.tone;
   } else {
-    text = "Dead even trade";
+    headline = isPending
+      ? "Calculating playoff odds…"
+      : "Couldn't calculate playoff odds for this trade.";
     tone = "neutral";
   }
 
   return (
     <Card>
-      <CardContent className="flex flex-col items-center gap-1 py-8 text-center">
+      <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Verdict
         </p>
@@ -401,8 +368,20 @@ export function Verdict({ diff, hasPlayers }: { diff: number; hasPlayers: boolea
                 : "text-foreground"
           }`}
         >
-          {text}
+          {headline}
         </p>
+        {verdict && (
+          <p className="text-sm text-muted-foreground">{verdict.valueCaption}</p>
+        )}
+        {verdict && verdict.cautions.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1">
+            {verdict.cautions.map((caution, index) => (
+              <p key={index} className="max-w-sm text-xs text-amber-600 dark:text-amber-400">
+                {caution}
+              </p>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
