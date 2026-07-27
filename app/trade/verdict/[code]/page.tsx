@@ -246,7 +246,7 @@ function InvalidTradeLink() {
           It may be malformed, or reference a team or player that no longer exists.
         </p>
         <Link
-          href="/"
+          href="/start"
           className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Try your own trade →

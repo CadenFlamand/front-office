@@ -11,7 +11,7 @@ export default function LeagueNotFound() {
           Couldn&apos;t find a Sleeper league with that ID.
         </p>
         <Link
-          href="/"
+          href="/start"
           className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Try a different league →
