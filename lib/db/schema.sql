@@ -23,6 +23,16 @@ CREATE TABLE IF NOT EXISTS roster_snapshots (
 CREATE INDEX IF NOT EXISTS roster_snapshots_league_roster_idx
   ON roster_snapshots (league_id, roster_id);
 
+-- Beta waitlist signups from the marketing landing page. league_id is
+-- optional context for a future invite flow, not populated by the current
+-- signup form.
+CREATE TABLE IF NOT EXISTS beta_signups (
+  id BIGSERIAL PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  league_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- One row per team per completed season, filled in separately (and later)
 -- once a season actually ends — not written by captureSnapshot().
 CREATE TABLE IF NOT EXISTS season_outcomes (

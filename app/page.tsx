@@ -4,6 +4,7 @@ import { ArrowRight, GitCompareArrows, Share2, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { BetaSignupForm } from "@/components/beta-signup-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Home() {
@@ -164,6 +165,8 @@ export default function Home() {
             Get Started
             <ArrowRight className="size-4" />
           </Button>
+
+          <BetaSignupForm />
         </div>
       </section>
     </div>
