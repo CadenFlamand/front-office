@@ -1,3 +1,5 @@
+import { fetchJson } from "./http";
+
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
 
 export interface SleeperLeague {
@@ -44,14 +46,6 @@ export interface SleeperPlayer {
 }
 
 export type PlayersById = Record<string, SleeperPlayer>;
-
-async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    throw new Error(`Sleeper API request failed (${res.status}): ${url}`);
-  }
-  return res.json() as Promise<T>;
-}
 
 export function getLeague(leagueId: string): Promise<SleeperLeague> {
   return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`, {

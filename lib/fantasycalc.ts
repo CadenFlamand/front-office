@@ -1,3 +1,4 @@
+import { fetchJson } from "./http";
 import { getAllPlayers } from "./sleeper";
 
 export interface TradeablePlayer {
@@ -77,16 +78,12 @@ export async function getPlayerValues(
     return cached.players;
   }
 
-  const [res, allPlayersRaw] = await Promise.all([
-    fetch(url, { cache: "no-store" }),
+  const [data, allPlayersRaw] = await Promise.all([
+    fetchJson<FantasyCalcEntry[]>(url, { cache: "no-store" }),
     getAllPlayers(),
   ]);
-  if (!res.ok) {
-    throw new Error(`FantasyCalc request failed (${res.status})`);
-  }
   const allPlayers = allPlayersRaw as unknown as Record<string, SleeperInjuryFields>;
 
-  const data = (await res.json()) as FantasyCalcEntry[];
   const players = data
     .filter((entry) => entry.player.sleeperId)
     .map((entry) => {

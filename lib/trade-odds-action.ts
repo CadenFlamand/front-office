@@ -13,6 +13,10 @@ export interface TradeOddsDiff {
 const NFL_STATE_URL = "https://api.sleeper.app/v1/state/nfl";
 const PROJECTIONS_BASE = "https://api.sleeper.app/projections/nfl";
 const PROJECTION_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
+// Matches lib/http.ts's fetchJson default — these two fetches bypass that
+// helper (they need their own try/catch-with-fallback rather than a thrown
+// error), but still shouldn't be able to hang indefinitely.
+const FETCH_TIMEOUT_MS = 12000;
 
 // Best-effort "which week to rank hypothetical-lineup candidates against".
 // The real point simulation in getPlayoffOdds() determines the actual next
@@ -24,7 +28,10 @@ const PROJECTION_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
 // and ranking falls back to candidate list order (see getRankedCandidates).
 async function getCurrentNflWeek(): Promise<number> {
   try {
-    const res = await fetch(NFL_STATE_URL, { next: { revalidate: 3600 } });
+    const res = await fetch(NFL_STATE_URL, {
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) return 1;
     const state = (await res.json()) as { week?: number; display_week?: number };
     return state.week && state.week > 0 ? state.week : (state.display_week ?? 1);
@@ -59,7 +66,10 @@ async function getWeeklyProjectedPoints(
   const positionParams = PROJECTION_POSITIONS.map((pos) => `position[]=${pos}`).join("&");
   const url = `${PROJECTIONS_BASE}/${season}/${week}?season_type=regular&${positionParams}`;
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) return new Map();
     const projections = (await res.json()) as {
       player_id: string;

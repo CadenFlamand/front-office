@@ -1,3 +1,5 @@
+import { fetchJson } from "@/lib/http";
+
 export interface PlayerSummary {
   id: string;
   name: string;
@@ -38,13 +40,7 @@ export async function getPlayers(): Promise<PlayerSummary[]> {
     return cache.players;
   }
 
-  const response = await fetch(PLAYERS_URL, { cache: "no-store" });
-
-  if (!response.ok) {
-    throw new Error(`Sleeper player request failed (${response.status})`);
-  }
-
-  const data = (await response.json()) as SleeperPlayersResponse;
+  const data = await fetchJson<SleeperPlayersResponse>(PLAYERS_URL, { cache: "no-store" });
   const players = Object.entries(data)
     .map(([id, player]) => ({
       id: player.player_id || id,

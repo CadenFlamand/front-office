@@ -1,4 +1,5 @@
 import { getPlayerValues, type TradeablePlayer } from "./fantasycalc";
+import { fetchJson } from "./http";
 import { getPlayoffOdds } from "./playoff-odds";
 import { getLeague, getRecord, getRosters, getTeamName, getUsers } from "./sleeper";
 
@@ -32,14 +33,8 @@ interface SleeperLeagueScoring {
 // fetches the same league endpoint again for just that field. Next.js
 // dedupes identical fetch()s within a request, so this doesn't cost an
 // extra round trip in practice.
-async function getLeagueScoring(leagueId: string): Promise<SleeperLeagueScoring> {
-  const res = await fetch(`${SLEEPER_BASE}/league/${leagueId}`, {
-    next: { revalidate: 3600 },
-  });
-  if (!res.ok) {
-    throw new Error(`Sleeper API request failed (${res.status})`);
-  }
-  return res.json() as Promise<SleeperLeagueScoring>;
+function getLeagueScoring(leagueId: string): Promise<SleeperLeagueScoring> {
+  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`, { next: { revalidate: 3600 } });
 }
 
 const STARTER_POSITIONS = ["QB", "RB", "WR", "TE"] as const;

@@ -1,3 +1,4 @@
+import { fetchJson } from "./http";
 import { getRecord, getRosters, getTeamName, getUsers } from "./sleeper";
 
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
@@ -50,20 +51,14 @@ export interface GetPlayoffOddsOptions {
   rosterOverrides?: Map<number, string[]>;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { next: { revalidate: 3600 } });
-  if (!res.ok) {
-    throw new Error(`Request failed (${res.status}): ${url}`);
-  }
-  return res.json() as Promise<T>;
-}
-
 function getLeagueSettings(leagueId: string): Promise<SleeperLeagueSettings> {
-  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`);
+  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`, { next: { revalidate: 3600 } });
 }
 
 function getMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> {
-  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}/matchups/${week}`);
+  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}/matchups/${week}`, {
+    next: { revalidate: 3600 },
+  });
 }
 
 // The full-league, all-position payload here is a couple MB — over Next's
@@ -86,11 +81,7 @@ async function getProjections(season: string, week: number): Promise<SleeperProj
 
   const positionParams = PROJECTION_POSITIONS.map((pos) => `position[]=${pos}`).join("&");
   const url = `${PROJECTIONS_BASE}/${season}/${week}?season_type=regular&${positionParams}`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`Request failed (${res.status}): ${url}`);
-  }
-  const data = (await res.json()) as SleeperProjection[];
+  const data = await fetchJson<SleeperProjection[]>(url, { cache: "no-store" });
   projectionsCache.set(cacheKey, { data, fetchedAt: Date.now() });
   return data;
 }
