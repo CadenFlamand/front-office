@@ -14,9 +14,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const TAGLINE = "Front Office tells you what the trade does to your season.";
+
 export const metadata: Metadata = {
   title: "Front Office",
-  description: "Your fantasy football front office.",
+  description: TAGLINE,
+  openGraph: {
+    title: "Front Office",
+    description: TAGLINE,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Front Office",
+    description: TAGLINE,
+  },
 };
 
 export default function RootLayout({

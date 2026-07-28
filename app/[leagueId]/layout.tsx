@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { ScrollableNav } from "@/components/scrollable-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TradeTabNudge } from "@/components/trade-tab-nudge";
 
 const NAV_LINKS = [
   { label: "Team", segment: "" },
@@ -39,6 +40,7 @@ export default async function LeagueLayout({
           <ThemeToggle />
         </div>
       </nav>
+      <TradeTabNudge leagueId={leagueId} />
       {children}
     </div>
   );
