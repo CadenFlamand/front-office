@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS beta_signups (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Every Sleeper league ID a real visitor has successfully validated via
+-- /start. The weekly snapshot Cron (app/api/snapshot/route.ts) loops over
+-- this table instead of a single hardcoded league. Upserted from
+-- validateLeagueId() on every successful validation — last_seen advances
+-- each time, first_seen only set once.
+CREATE TABLE IF NOT EXISTS tracked_leagues (
+  league_id TEXT PRIMARY KEY,
+  first_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- One row per team per completed season, filled in separately (and later)
 -- once a season actually ends — not written by captureSnapshot().
 CREATE TABLE IF NOT EXISTS season_outcomes (

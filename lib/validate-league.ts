@@ -1,5 +1,6 @@
 "use server";
 
+import { trackLeagueSeen } from "@/lib/db/tracked-leagues";
 import { isNotFound } from "@/lib/http";
 import { getLeague } from "@/lib/sleeper";
 
@@ -21,6 +22,13 @@ export async function validateLeagueId(leagueId: string): Promise<LeagueValidati
 
   try {
     const league = await getLeague(trimmed);
+    // Fire-and-forget: recording the league for the snapshot Cron should
+    // never add latency to (or fail) the validation response the user is
+    // waiting on. Still logged on failure so a broken write doesn't
+    // disappear silently.
+    trackLeagueSeen(trimmed).catch((error) => {
+      console.error(`Failed to track league ${trimmed}:`, error);
+    });
     return { ok: true, leagueName: league.name };
   } catch (error) {
     if (isNotFound(error)) {

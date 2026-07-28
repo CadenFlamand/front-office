@@ -1,9 +1,12 @@
-import { captureSnapshot } from "@/lib/db/snapshot";
+import { captureSnapshot, type CaptureSnapshotResult } from "@/lib/db/snapshot";
+import { getTrackedLeagueIds } from "@/lib/db/tracked-leagues";
 
-// Duplicated from lib/sleeper.ts's own LEAGUE_ID constant rather than
-// imported (it isn't exported) — see the same rationale already used
-// elsewhere in this codebase for this exact constant.
-const LEAGUE_ID = "1385091542758203392";
+interface LeagueSnapshotOutcome {
+  leagueId: string;
+  ok: boolean;
+  result?: CaptureSnapshotResult;
+  error?: string;
+}
 
 // Triggered weekly by Vercel Cron (see vercel.json), which automatically
 // sends `Authorization: Bearer <CRON_SECRET>` using whatever value is set
@@ -16,13 +19,31 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const result = await captureSnapshot(LEAGUE_ID);
-    return Response.json(result);
-  } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+  const leagueIds = await getTrackedLeagueIds();
+
+  // Sequential, not Promise.all: one bad/deleted league shouldn't take down
+  // the run, and this avoids hammering Sleeper with a burst of concurrent
+  // requests as the tracked-league count grows.
+  const outcomes: LeagueSnapshotOutcome[] = [];
+  for (const leagueId of leagueIds) {
+    try {
+      const result = await captureSnapshot(leagueId);
+      outcomes.push({ leagueId, ok: true, result });
+    } catch (error) {
+      outcomes.push({
+        leagueId,
+        ok: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
+
+  const succeeded = outcomes.filter((outcome) => outcome.ok).length;
+
+  return Response.json({
+    totalLeagues: leagueIds.length,
+    succeeded,
+    failed: leagueIds.length - succeeded,
+    results: outcomes,
+  });
 }
