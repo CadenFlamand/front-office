@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { TeamDashboard, type TeamSummary } from "@/components/team-dashboard";
 import { Separator } from "@/components/ui/separator";
+import { isNotFound } from "@/lib/http";
 import { getPlayoffOdds } from "@/lib/playoff-odds";
 import {
   getAvatarUrl,
@@ -27,8 +28,9 @@ export default async function TeamPickerPage({
       getUsers(leagueId),
       getPlayoffOdds(leagueId),
     ]);
-  } catch {
-    notFound();
+  } catch (error) {
+    if (isNotFound(error)) notFound();
+    throw error;
   }
   const usersById = new Map(users.map((user) => [user.user_id, user]));
   const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));

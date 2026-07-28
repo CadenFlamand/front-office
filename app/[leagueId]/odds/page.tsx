@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { isNotFound } from "@/lib/http";
 import { getPlayoffOdds } from "@/lib/playoff-odds";
 
 export const metadata = {
@@ -19,8 +20,9 @@ export default async function OddsPage({
   let results;
   try {
     results = await getPlayoffOdds(leagueId);
-  } catch {
-    notFound();
+  } catch (error) {
+    if (isNotFound(error)) notFound();
+    throw error;
   }
 
   // Built as one string rather than `{results.length} teams · ...` inline —

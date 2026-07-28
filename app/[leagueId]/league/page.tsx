@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { isNotFound } from "@/lib/http";
 import { getPlayoffOdds } from "@/lib/playoff-odds";
 import {
   getAllPlayers,
@@ -75,8 +76,9 @@ export default async function LeaguePage({
       getAllPlayers(),
       getPlayoffOdds(leagueId),
     ]);
-  } catch {
-    notFound();
+  } catch (error) {
+    if (isNotFound(error)) notFound();
+    throw error;
   }
 
   const usersById = new Map(users.map((user) => [user.user_id, user]));

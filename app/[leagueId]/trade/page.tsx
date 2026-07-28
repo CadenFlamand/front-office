@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { Separator } from "@/components/ui/separator";
+import { isNotFound } from "@/lib/http";
 import { getTeamContexts } from "@/lib/team-context";
 
 import { TradeAnalyzer } from "./trade-analyzer";
@@ -20,8 +21,9 @@ export default async function TradePage({
   let teams, values;
   try {
     ({ teams, values } = await getTeamContexts(leagueId));
-  } catch {
-    notFound();
+  } catch (error) {
+    if (isNotFound(error)) notFound();
+    throw error;
   }
 
   return (

@@ -1,11 +1,12 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Search, Share2, X } from "lucide-react";
+import { Loader2, Search, Share2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
 import type { PlayoffBucket, TeamContext } from "@/lib/team-context";
 import { useStoredRosterId } from "@/lib/team-selection";
@@ -73,23 +74,47 @@ export function TradeAnalyzer({
   const hasPlayers = giveIds.length > 0 && receiveIds.length > 0;
 
   const [odds, setOdds] = useState<TradeOddsDiff | null>(null);
+  const [oddsError, setOddsError] = useState(false);
   const [isOddsPending, startOddsTransition] = useTransition();
   const oddsRequestId = useRef(0);
+  // Bumped by the "Try again" link below on a failed fetch — included in
+  // the effect's deps purely to re-trigger it without changing any of the
+  // actual trade inputs.
+  const [oddsRetryKey, setOddsRetryKey] = useState(0);
 
   useEffect(() => {
     const requestId = ++oddsRequestId.current;
     startOddsTransition(async () => {
       if (!selectedRosterId || !hasPlayers) {
         setOdds(null);
+        setOddsError(false);
         return;
       }
-      const result = await getOddsForTrade(leagueId, selectedRosterId, giveIds, receiveIds);
-      // A newer request may have started (and resolved) while this one was
-      // in flight — ignore this response so a stale result can't overwrite
-      // a fresher one.
-      if (requestId === oddsRequestId.current) setOdds(result);
+      try {
+        const result = await getOddsForTrade(leagueId, selectedRosterId, giveIds, receiveIds);
+        // A newer request may have started (and resolved) while this one
+        // was in flight — ignore this response so a stale result can't
+        // overwrite a fresher one.
+        if (requestId === oddsRequestId.current) {
+          setOdds(result);
+          setOddsError(false);
+        }
+      } catch {
+        if (requestId === oddsRequestId.current) {
+          setOdds(null);
+          setOddsError(true);
+        }
+      }
     });
-  }, [leagueId, selectedRosterId, giveIds, receiveIds, hasPlayers, startOddsTransition]);
+  }, [
+    leagueId,
+    selectedRosterId,
+    giveIds,
+    receiveIds,
+    hasPlayers,
+    startOddsTransition,
+    oddsRetryKey,
+  ]);
 
   const verdict = useMemo(() => {
     if (!selectedTeam || !odds) return null;
@@ -149,14 +174,29 @@ export function TradeAnalyzer({
       />
 
       <div className="flex flex-col gap-3">
-        {selectedTeam && hasPlayers && odds && verdict && (
+        {selectedTeam && hasPlayers && odds && verdict ? (
           <>
             <TeamContextLine team={selectedTeam} verdict={verdict} />
             <OddsDiffLine odds={odds} tone={verdict.tone} isPending={isOddsPending} />
           </>
+        ) : (
+          selectedTeam &&
+          hasPlayers &&
+          isOddsPending && (
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-4 w-52" />
+            </div>
+          )
         )}
 
-        <Verdict verdict={verdict} hasPlayers={hasPlayers} isPending={isOddsPending} />
+        <Verdict
+          verdict={verdict}
+          hasPlayers={hasPlayers}
+          isPending={isOddsPending}
+          hasError={oddsError}
+          onRetry={() => setOddsRetryKey((key) => key + 1)}
+        />
 
         {selectedTeam && hasPlayers && odds && verdict && (
           <div className="flex items-center justify-center gap-2">
@@ -332,10 +372,14 @@ export function Verdict({
   verdict,
   hasPlayers,
   isPending,
+  hasError = false,
+  onRetry,
 }: {
   verdict: TradeVerdict | null;
   hasPlayers: boolean;
   isPending: boolean;
+  hasError?: boolean;
+  onRetry?: () => void;
 }) {
   let headline: string;
   let tone: VerdictTone;
@@ -360,7 +404,7 @@ export function Verdict({
           Verdict
         </p>
         <p
-          className={`text-2xl font-semibold ${
+          className={`flex items-center gap-2 text-2xl font-semibold ${
             tone === "positive"
               ? "text-emerald-600 dark:text-emerald-400"
               : tone === "negative"
@@ -368,8 +412,20 @@ export function Verdict({
                 : "text-foreground"
           }`}
         >
+          {isPending && !verdict && (
+            <Loader2 className="size-5 shrink-0 animate-spin text-muted-foreground" />
+          )}
           {headline}
         </p>
+        {hasError && !verdict && onRetry && (
+          <button
+            type="button"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            onClick={onRetry}
+          >
+            Try again
+          </button>
+        )}
         {verdict && (
           <p className="text-sm text-muted-foreground">{verdict.valueCaption}</p>
         )}
