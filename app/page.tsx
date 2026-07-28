@@ -4,10 +4,16 @@ import { ArrowRight, GitCompareArrows, Share2, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
+      <header className="flex items-center justify-between border-b bg-background px-6 py-4 sm:px-8">
+        <span className="text-sm font-semibold tracking-tight">Front Office</span>
+        <ThemeToggle />
+      </header>
+
       {/* Hero */}
       <section className="relative overflow-hidden px-6 pt-20 pb-24 sm:px-8 sm:pt-28 sm:pb-32">
         <div
