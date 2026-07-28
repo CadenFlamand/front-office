@@ -56,6 +56,7 @@ export function BetaSignupForm() {
 
       <form
         className="flex w-full flex-col gap-2"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           submit();

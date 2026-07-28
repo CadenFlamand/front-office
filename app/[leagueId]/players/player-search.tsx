@@ -118,11 +118,11 @@ export function PlayerSearch({ players }: { players: PlayerSummary[] }) {
                 <span className="hidden text-sm sm:block">
                   {displayValue(player.team, "FA")}
                 </span>
-                <div>
+                <div className={player.injuryStatus ? undefined : "hidden sm:block"}>
                   {player.injuryStatus ? (
                     <Badge variant="destructive">{player.injuryStatus}</Badge>
                   ) : (
-                    <span className="hidden text-sm text-muted-foreground sm:inline">Healthy</span>
+                    <span className="text-sm text-muted-foreground">Healthy</span>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground sm:text-sm">

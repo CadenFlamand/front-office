@@ -149,19 +149,29 @@ export function TradeAnalyzer({
     });
     const url = `${window.location.origin}/trade/verdict/${code}`;
 
+    // Copy to the clipboard unconditionally first, so a usable link always
+    // ends up somewhere the user can reach it — navigator.share() exists on
+    // most desktop Chrome/Edge builds but opens a native sheet with nothing
+    // configured to receive it, and silently does nothing if the user just
+    // closes it. The native share sheet below is offered as a bonus on top
+    // of the guaranteed clipboard copy, not instead of it.
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareStatus("copied");
+      setTimeout(() => setShareStatus("idle"), 2000);
+    } catch {
+      // Clipboard write can fail (permissions, insecure context) — the
+      // native share sheet below is still a valid path if it's available.
+    }
+
     if (navigator.share) {
       try {
         await navigator.share({ title: "Trade Verdict", url });
       } catch {
-        // User dismissed the native share sheet or it failed — that was an
-        // explicit choice either way, so no clipboard fallback here.
+        // Dismissed or unsupported — the clipboard copy above already
+        // covered it.
       }
-      return;
     }
-
-    await navigator.clipboard.writeText(url);
-    setShareStatus("copied");
-    setTimeout(() => setShareStatus("idle"), 2000);
   }
 
   return (

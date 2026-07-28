@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 
+import { ScrollableNav } from "@/components/scrollable-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV_LINKS = [
@@ -29,17 +29,12 @@ export default async function LeagueLayout({
         {/* Scrolls horizontally on narrow viewports instead of wrapping or
             pushing the wordmark/toggle off-screen — there isn't room for
             the wordmark + 5 links + toggle on one line at phone widths. */}
-        <div className="scroll-fade-x flex flex-1 items-center gap-1 overflow-x-auto">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.label}
-              href={`/${leagueId}${link.segment}`}
-              className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
+        <ScrollableNav
+          links={NAV_LINKS.map((link) => ({
+            label: link.label,
+            href: `/${leagueId}${link.segment}`,
+          }))}
+        />
         <div className="ml-2 flex shrink-0 items-center">
           <ThemeToggle />
         </div>
