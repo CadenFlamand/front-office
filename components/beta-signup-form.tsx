@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -75,6 +76,12 @@ export function BetaSignupForm() {
             {isPending ? "Joining…" : "Join waitlist"}
           </Button>
         </div>
+        <p className="text-left text-xs text-muted-foreground">
+          We&apos;ll only use this to email you about the beta. No spam.{" "}
+          <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+            Privacy
+          </Link>
+        </p>
         {error && <p className="text-left text-sm text-red-600 dark:text-red-400">{error}</p>}
       </form>
     </div>
