@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 import { ScrollableNav } from "@/components/scrollable-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -24,9 +25,12 @@ export default async function LeagueLayout({
   return (
     <div className="flex flex-1 flex-col">
       <nav className="flex items-center gap-1 border-b bg-background px-4 py-3 sm:px-6">
-        <span className="mr-2 shrink-0 text-sm font-semibold tracking-tight whitespace-nowrap">
+        <Link
+          href="/"
+          className="mr-2 shrink-0 text-sm font-semibold tracking-tight whitespace-nowrap transition-colors hover:text-primary"
+        >
           Front Office
-        </span>
+        </Link>
         {/* Scrolls horizontally on narrow viewports instead of wrapping or
             pushing the wordmark/toggle off-screen — there isn't room for
             the wordmark + 5 links + toggle on one line at phone widths. */}
