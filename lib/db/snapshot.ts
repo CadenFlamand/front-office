@@ -89,3 +89,26 @@ export async function captureSnapshot(leagueId: string): Promise<CaptureSnapshot
     teamsCaptured: rosters.length,
   };
 }
+
+/**
+ * Recent playoff-odds history for one team, ascending by week — powers the
+ * co-manager advice odds-trend signal (lib/team-advice.ts). First reader
+ * ever written against roster_snapshots; captureSnapshot() above is
+ * write-only.
+ */
+export async function getRecentOddsHistory(
+  leagueId: string,
+  rosterId: number,
+  weeks = 4
+): Promise<{ week: number; playoffOdds: number }[]> {
+  const rows = await sql`
+    SELECT week, playoff_odds
+    FROM roster_snapshots
+    WHERE league_id = ${leagueId} AND roster_id = ${rosterId}
+    ORDER BY week DESC
+    LIMIT ${weeks}
+  `;
+  return rows
+    .map((row) => ({ week: row.week as number, playoffOdds: row.playoff_odds as number }))
+    .reverse();
+}

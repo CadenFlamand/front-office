@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CoManagerAdvice } from "@/components/co-manager-advice";
 
 export interface TeamSummary {
   rosterId: number;
@@ -136,6 +137,8 @@ export function TeamDashboard({
               value={selectedTeam.pointsAgainst.toFixed(2)}
             />
           </div>
+
+          <CoManagerAdvice leagueId={leagueId} rosterId={selectedTeam.rosterId} />
         </CardContent>
       </Card>
     );
