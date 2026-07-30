@@ -1,8 +1,15 @@
+import type { PositionStrength } from "./team-context";
+
 export type SeasonStage = "diagnostic" | "active_trading" | "waiver_mode";
 
 export interface ThinPositionAction {
   position: string;
   action: string;
+}
+
+export interface MindfulPositionFlag {
+  position: string;
+  note: string;
 }
 
 export interface OddsTrend {
@@ -14,6 +21,8 @@ export interface OddsTrend {
 export interface AdviceSignals {
   stage: SeasonStage;
   diagnosticNote?: string;
+  // Stage 1 (diagnostic) only — early awareness, not action items.
+  mindfulFlags?: MindfulPositionFlag[];
   thinPositionActions: ThinPositionAction[];
   oddsTrend?: OddsTrend;
 }
@@ -26,6 +35,8 @@ export interface AdviceInput {
   totalTeams: number;
   // From TeamContext.thinPositions (lib/team-context.ts).
   thinPositions: string[];
+  // From TeamContext.positionStrength (lib/team-context.ts).
+  positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>;
   // Ascending by week.
   oddsHistory: { week: number; playoffOdds: number }[];
 }
@@ -95,6 +106,65 @@ function computeThinPositionActions(thinPositions: string[]): ThinPositionAction
   });
 }
 
+// Stage 1 uses fixed-cutoff checks, deliberately different from
+// computeThinPositionActions()'s league-format-relative bar — early season
+// is about "is your best guy actually good" (QB/TE) or "do you have enough
+// bodies" (RB/WR), not "can you fill your exact starting lineup yet".
+const QB_TE_TOP_RANK_THRESHOLD = 8;
+const RB_WR_TOP_STARTER_RANK = 12;
+// The "top 20" cutoff itself lives in lib/team-context.ts's
+// computePositionStrength() (TOP20_RANK), which is what top20Count counts.
+const RB_WR_MIN_BACKUP_OPTIONS = 2;
+const RB_WR_LOW_ROSTER_COUNT_THRESHOLD = 5; // flags at 4 or fewer rostered
+
+// QB/TE: streaming 1-2 deep is a normal, intentional strategy (this same
+// module recommends it in later stages), so roster count isn't a signal
+// here — only whether your best option is actually good.
+function isQbTeWeak(strength: PositionStrength, alreadyFlagged: boolean): boolean {
+  if (alreadyFlagged) return true;
+  return (
+    strength.bestPositionRank === null || strength.bestPositionRank > QB_TE_TOP_RANK_THRESHOLD
+  );
+}
+
+// RB/WR: streaming isn't viable, so both "no real difference-maker" and
+// "not enough bodies" are worth flagging.
+function isRbWrThin(strength: PositionStrength, alreadyFlagged: boolean): boolean {
+  if (alreadyFlagged) return true;
+  const hasEliteOption =
+    strength.bestPositionRank !== null && strength.bestPositionRank <= RB_WR_TOP_STARTER_RANK;
+  const hasEnoughGoodOptions = strength.top20Count >= RB_WR_MIN_BACKUP_OPTIONS;
+  const rankThin = !hasEliteOption && !hasEnoughGoodOptions;
+  const countThin = strength.rosterCount < RB_WR_LOW_ROSTER_COUNT_THRESHOLD;
+  return rankThin || countThin;
+}
+
+function mindfulNote(position: "QB" | "RB" | "WR" | "TE"): string {
+  if (position === "QB" || position === "TE") {
+    return `${position} is weak — worth considering streaming the position early rather than locking into one starter, since that's a normal strategy at ${position}.`;
+  }
+  return `${position} is thin — keep an eye on the waiver wire here. Streaming isn't really viable at ${position}, so this is more about staying alert than making a move yet.`;
+}
+
+function computeMindfulPositionFlags(
+  thinPositions: string[],
+  positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>
+): MindfulPositionFlag[] {
+  const alreadyFlagged = new Set(thinPositions);
+  const flags: MindfulPositionFlag[] = [];
+
+  for (const position of ["QB", "RB", "WR", "TE"] as const) {
+    const strength = positionStrength[position];
+    const flagged =
+      position === "QB" || position === "TE"
+        ? isQbTeWeak(strength, alreadyFlagged.has(position))
+        : isRbWrThin(strength, alreadyFlagged.has(position));
+    if (flagged) flags.push({ position, note: mindfulNote(position) });
+  }
+
+  return flags;
+}
+
 // Conservative starting point per spec — avoid noisy/small fluctuations
 // triggering the flag. Tune once real snapshot data is available.
 const SIGNIFICANT_ODDS_TREND_THRESHOLD = 0.15; // 15 percentage points
@@ -132,6 +202,12 @@ export function computeCoManagerAdvice(input: AdviceInput): AdviceSignals {
       stage === "diagnostic"
         ? computeDiagnosticNote(input.recordRank, input.pfRank, input.totalTeams)
         : undefined,
+    // Early awareness only, not an action item — only shown in the
+    // diagnostic stage, same gating (inverted) as thinPositionActions below.
+    mindfulFlags:
+      stage === "diagnostic"
+        ? computeMindfulPositionFlags(input.thinPositions, input.positionStrength)
+        : undefined,
     // No trade/waiver action is prescribed in the diagnostic stage — it's a
     // framing note only.
     thinPositionActions:
@@ -154,11 +230,16 @@ function formatThinPositionAction(action: ThinPositionAction): string {
 }
 
 // Single collapsed line summarizing the top-priority signal: a significant
-// odds swing is time-sensitive so it leads when present, otherwise the
-// diagnostic note (stage 1's only signal) or the first thin-position action.
+// odds swing is time-sensitive so it leads when present, then the
+// diagnostic note, then the first mindful flag or thin-position action
+// (mindfulFlags and thinPositionActions are stage-exclusive, so only one of
+// the two is ever populated — no real conflict between those last two).
 export function formatAdviceCompact(advice: AdviceSignals): string | undefined {
   if (advice.oddsTrend) return formatOddsTrend(advice.oddsTrend);
   if (advice.diagnosticNote) return advice.diagnosticNote;
+  if (advice.mindfulFlags && advice.mindfulFlags.length > 0) {
+    return advice.mindfulFlags[0].note;
+  }
   if (advice.thinPositionActions.length > 0) {
     return formatThinPositionAction(advice.thinPositionActions[0]);
   }
@@ -169,6 +250,9 @@ export function formatAdviceCompact(advice: AdviceSignals): string | undefined {
 export function formatAdviceExpanded(advice: AdviceSignals): string[] {
   const lines: string[] = [];
   if (advice.diagnosticNote) lines.push(advice.diagnosticNote);
+  for (const flag of advice.mindfulFlags ?? []) {
+    lines.push(flag.note);
+  }
   for (const action of advice.thinPositionActions) {
     lines.push(formatThinPositionAction(action));
   }

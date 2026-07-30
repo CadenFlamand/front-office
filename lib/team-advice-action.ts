@@ -75,6 +75,7 @@ export async function getCoManagerAdvice(
     pfRank: ranks.pfRank,
     totalTeams: rosters.length,
     thinPositions: team.thinPositions,
+    positionStrength: team.positionStrength,
     oddsHistory,
   });
 }

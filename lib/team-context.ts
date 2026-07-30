@@ -8,6 +8,13 @@ export type PlayoffBucket =
   | "Playoff Contender"
   | "Playoff Hopeful";
 
+export interface PositionStrength {
+  rosterCount: number;
+  // null = no FantasyCalc-valued player rostered at this position at all.
+  bestPositionRank: number | null;
+  top20Count: number;
+}
+
 export interface TeamContext {
   rosterId: number;
   teamName: string;
@@ -15,6 +22,7 @@ export interface TeamContext {
   record: string;
   bucket: PlayoffBucket;
   thinPositions: string[];
+  positionStrength: Record<(typeof STARTER_POSITIONS)[number], PositionStrength>;
   // Sleeper IDs of this team's rostered players that also have a FantasyCalc
   // value (i.e. tradeable skill players) — used to scope "You Give" to this
   // team's actual roster instead of the full league player pool.
@@ -109,6 +117,40 @@ function computeThinPositions(
   );
 }
 
+const TOP20_RANK = 20;
+
+// Raw positional depth/strength, independent of league starter requirements
+// — feeds the co-manager advice module's fixed-cutoff checks (top-8/top-12/
+// roster-count), which are deliberately different from computeThinPositions()'s
+// league-format-relative bar above. Only counts FantasyCalc-valued players,
+// same "no value = not real depth" philosophy as computeThinPositions().
+function computePositionStrength(
+  rosterPlayerIds: string[],
+  valuesById: Map<string, TradeablePlayer>
+): Record<(typeof STARTER_POSITIONS)[number], PositionStrength> {
+  const strength: Record<string, PositionStrength> = {};
+  for (const position of STARTER_POSITIONS) {
+    strength[position] = { rosterCount: 0, bestPositionRank: null, top20Count: 0 };
+  }
+
+  for (const playerId of rosterPlayerIds) {
+    const player = valuesById.get(playerId);
+    if (!player || !STARTER_POSITION_SET.has(player.position)) continue;
+
+    const positionStrength = strength[player.position];
+    positionStrength.rosterCount += 1;
+    if (
+      positionStrength.bestPositionRank === null ||
+      player.positionRank < positionStrength.bestPositionRank
+    ) {
+      positionStrength.bestPositionRank = player.positionRank;
+    }
+    if (player.positionRank <= TOP20_RANK) positionStrength.top20Count += 1;
+  }
+
+  return strength as Record<(typeof STARTER_POSITIONS)[number], PositionStrength>;
+}
+
 export async function getTeamContexts(leagueId: string): Promise<{
   teams: TeamContext[];
   values: TradeablePlayer[];
@@ -152,6 +194,7 @@ export async function getTeamContexts(leagueId: string): Promise<{
         requiredStarters,
         league.total_rosters
       ),
+      positionStrength: computePositionStrength(rosterPlayerIds, valuesById),
       rosterPlayerIds,
     };
   });

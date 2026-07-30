@@ -92,6 +92,16 @@ export async function loadVerdictView(code: string): Promise<VerdictView | null>
     record: getRecord(roster),
     bucket: payload.team.bucket,
     thinPositions: payload.team.thinPositions,
+    // Only TeamContextLine reads this reconstructed TeamContext, which never
+    // touches positionStrength (that's the co-manager advice module's
+    // signal, not the trade verdict's) — left empty like rosterPlayerIds
+    // above rather than fetching FantasyCalc data this page doesn't need.
+    positionStrength: {
+      QB: { rosterCount: 0, bestPositionRank: null, top20Count: 0 },
+      RB: { rosterCount: 0, bestPositionRank: null, top20Count: 0 },
+      WR: { rosterCount: 0, bestPositionRank: null, top20Count: 0 },
+      TE: { rosterCount: 0, bestPositionRank: null, top20Count: 0 },
+    },
     rosterPlayerIds: [],
   };
 
