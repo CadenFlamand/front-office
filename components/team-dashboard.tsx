@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CoManagerAdvice } from "@/components/co-manager-advice";
+import { PlayerSosList } from "@/components/player-sos-list";
 
 export interface TeamSummary {
   rosterId: number;
@@ -139,6 +140,7 @@ export function TeamDashboard({
           </div>
 
           <CoManagerAdvice leagueId={leagueId} rosterId={selectedTeam.rosterId} />
+          <PlayerSosList leagueId={leagueId} rosterId={selectedTeam.rosterId} />
         </CardContent>
       </Card>
     );

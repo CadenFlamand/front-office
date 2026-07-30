@@ -1,3 +1,4 @@
+import { NEAR_TERM_WINDOW_WEEKS } from "./sos";
 import type { PositionStrength } from "./team-context";
 
 export type SeasonStage = "diagnostic" | "active_trading" | "waiver_mode";
@@ -18,11 +19,23 @@ export interface OddsTrend {
   weeksSpan: number;
 }
 
+export interface SellHighFlag {
+  position: string;
+  playerName: string;
+  note: string;
+}
+
 export interface AdviceSignals {
   stage: SeasonStage;
   diagnosticNote?: string;
   // Stage 1 (diagnostic) only — early awareness, not action items.
   mindfulFlags?: MindfulPositionFlag[];
+  // Stage 2 (active_trading) only — own-roster sell-high nudges, driven by
+  // near-term SOS. No league-wide buy-low scan (that would need SOS for
+  // every other roster/free agent) — that framing lives in the trade
+  // analyzer instead, scoped to whichever players are already in a
+  // proposed trade.
+  sellHighFlags?: SellHighFlag[];
   thinPositionActions: ThinPositionAction[];
   oddsTrend?: OddsTrend;
 }
@@ -39,6 +52,11 @@ export interface AdviceInput {
   positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>;
   // Ascending by week.
   oddsHistory: { week: number; playoffOdds: number }[];
+  // Starters whose near-term SOS (lib/sos.ts) tier is already "brutal" —
+  // pre-filtered by the caller (lib/team-advice-action.ts), which is the
+  // one with SOS data on hand; this module only turns qualifying players
+  // into copy.
+  sellHighCandidates: { position: string; playerName: string }[];
 }
 
 // Weeks 1-4 are diagnostic regardless of trade-deadline timing — the point
@@ -165,6 +183,16 @@ function computeMindfulPositionFlags(
   return flags;
 }
 
+function computeSellHighFlags(
+  candidates: { position: string; playerName: string }[]
+): SellHighFlag[] {
+  return candidates.map(({ position, playerName }) => ({
+    position,
+    playerName,
+    note: `${playerName} (${position}) has a brutal next ${NEAR_TERM_WINDOW_WEEKS} weeks — worth considering trading him now while his name value is still high.`,
+  }));
+}
+
 // Conservative starting point per spec — avoid noisy/small fluctuations
 // triggering the flag. Tune once real snapshot data is available.
 const SIGNIFICANT_ODDS_TREND_THRESHOLD = 0.15; // 15 percentage points
@@ -212,6 +240,8 @@ export function computeCoManagerAdvice(input: AdviceInput): AdviceSignals {
     // framing note only.
     thinPositionActions:
       stage === "diagnostic" ? [] : computeThinPositionActions(input.thinPositions),
+    sellHighFlags:
+      stage === "active_trading" ? computeSellHighFlags(input.sellHighCandidates) : undefined,
     oddsTrend: computeOddsTrend(input.oddsHistory),
   };
 }
@@ -230,12 +260,19 @@ function formatThinPositionAction(action: ThinPositionAction): string {
 }
 
 // Single collapsed line summarizing the top-priority signal: a significant
-// odds swing is time-sensitive so it leads when present, then the
-// diagnostic note, then the first mindful flag or thin-position action
-// (mindfulFlags and thinPositionActions are stage-exclusive, so only one of
-// the two is ever populated — no real conflict between those last two).
+// odds swing is time-sensitive so it leads when present; then a sell-high
+// flag, since a named-player timing suggestion is more actionable than a
+// generic positional note; then the diagnostic note, then the first
+// mindful flag or thin-position action (mindfulFlags is diagnostic-stage-
+// only and thinPositionActions is never populated in that same stage, so
+// those two never actually conflict — sellHighFlags and
+// thinPositionActions CAN coexist in Stage 2, which is why sellHighFlags
+// is checked first).
 export function formatAdviceCompact(advice: AdviceSignals): string | undefined {
   if (advice.oddsTrend) return formatOddsTrend(advice.oddsTrend);
+  if (advice.sellHighFlags && advice.sellHighFlags.length > 0) {
+    return advice.sellHighFlags[0].note;
+  }
   if (advice.diagnosticNote) return advice.diagnosticNote;
   if (advice.mindfulFlags && advice.mindfulFlags.length > 0) {
     return advice.mindfulFlags[0].note;
@@ -251,6 +288,9 @@ export function formatAdviceExpanded(advice: AdviceSignals): string[] {
   const lines: string[] = [];
   if (advice.diagnosticNote) lines.push(advice.diagnosticNote);
   for (const flag of advice.mindfulFlags ?? []) {
+    lines.push(flag.note);
+  }
+  for (const flag of advice.sellHighFlags ?? []) {
     lines.push(flag.note);
   }
   for (const action of advice.thinPositionActions) {

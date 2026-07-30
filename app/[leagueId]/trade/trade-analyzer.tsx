@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SosTierBadge } from "@/components/sos-tier-badge";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
+import { formatNearTermTradeNote, type PlayerSos } from "@/lib/sos";
+import { getTradeSos } from "@/lib/sos-action";
 import type { PlayoffBucket, TeamContext } from "@/lib/team-context";
 import { useStoredRosterId } from "@/lib/team-selection";
 import { getTradeLabel } from "@/lib/trade-label";
@@ -115,6 +118,38 @@ export function TradeAnalyzer({
     startOddsTransition,
     oddsRetryKey,
   ]);
+
+  // Independent of the odds effect above — SOS is an awareness signal, not
+  // something the verdict depends on, so it shouldn't block on or be
+  // blocked by the playoff-odds simulation.
+  const [sosByPlayer, setSosByPlayer] = useState<Map<string, PlayerSos>>(new Map());
+  const [, startSosTransition] = useTransition();
+  const sosRequestId = useRef(0);
+
+  useEffect(() => {
+    const requestId = ++sosRequestId.current;
+    startSosTransition(async () => {
+      const requestPlayers = Array.from(selectedIds).flatMap((id) => {
+        const player = playersById.get(id);
+        return player
+          ? [{ sleeperId: player.sleeperId, position: player.position, team: player.team }]
+          : [];
+      });
+      if (requestPlayers.length === 0) {
+        if (requestId === sosRequestId.current) setSosByPlayer(new Map());
+        return;
+      }
+      try {
+        const result = await getTradeSos(leagueId, requestPlayers);
+        // A newer request may have started (and resolved) while this one
+        // was in flight — ignore this response so a stale result can't
+        // overwrite a fresher one.
+        if (requestId === sosRequestId.current) setSosByPlayer(result);
+      } catch {
+        if (requestId === sosRequestId.current) setSosByPlayer(new Map());
+      }
+    });
+  }, [leagueId, selectedIds, playersById, startSosTransition]);
 
   const verdict = useMemo(() => {
     if (!selectedTeam || !odds) return null;
@@ -224,10 +259,12 @@ export function TradeAnalyzer({
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <TradeColumn
           title="You Give"
+          side="give"
           players={rosterPlayers}
           selectedIds={selectedIds}
           sideIds={giveIds}
           playersById={playersById}
+          sosByPlayer={sosByPlayer}
           total={giveTotal}
           onAdd={(id) => addPlayer("give", id)}
           onRemove={(id) => removePlayer("give", id)}
@@ -238,10 +275,12 @@ export function TradeAnalyzer({
         />
         <TradeColumn
           title="You Receive"
+          side="receive"
           players={players}
           selectedIds={selectedIds}
           sideIds={receiveIds}
           playersById={playersById}
+          sosByPlayer={sosByPlayer}
           total={receiveTotal}
           onAdd={(id) => addPlayer("receive", id)}
           onRemove={(id) => removePlayer("receive", id)}
@@ -455,10 +494,12 @@ export function Verdict({
 
 function TradeColumn({
   title,
+  side,
   players,
   selectedIds,
   sideIds,
   playersById,
+  sosByPlayer,
   total,
   onAdd,
   onRemove,
@@ -466,10 +507,12 @@ function TradeColumn({
   disabledMessage,
 }: {
   title: string;
+  side: Side;
   players: TradeablePlayer[];
   selectedIds: Set<string>;
   sideIds: string[];
   playersById: Map<string, TradeablePlayer>;
+  sosByPlayer: Map<string, PlayerSos>;
   total: number;
   onAdd: (sleeperId: string) => void;
   onRemove: (sleeperId: string) => void;
@@ -509,28 +552,35 @@ function TradeColumn({
           {sideIds.map((id) => {
             const player = playersById.get(id);
             if (!player) return null;
+            const sos = sosByPlayer.get(id);
+            const nearTermNote = sos
+              ? formatNearTermTradeNote(side, sos.nearTerm.tier)
+              : undefined;
             return (
-              <div
-                key={id}
-                className="flex items-center gap-2 rounded-lg border px-3 py-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{player.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {player.position} · {player.team ?? "FA"}
-                  </p>
+              <div key={id} className="flex flex-col gap-1.5 rounded-lg border px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{player.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {player.position} · {player.team ?? "FA"}
+                    </p>
+                  </div>
+                  {sos && <SosTierBadge window={sos.seasonLong} />}
+                  <span className="text-sm font-medium tabular-nums">
+                    {player.value.toLocaleString()}
+                  </span>
+                  <button
+                    aria-label={`Remove ${player.name}`}
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => onRemove(id)}
+                    type="button"
+                  >
+                    <X className="size-4" />
+                  </button>
                 </div>
-                <span className="text-sm font-medium tabular-nums">
-                  {player.value.toLocaleString()}
-                </span>
-                <button
-                  aria-label={`Remove ${player.name}`}
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                  onClick={() => onRemove(id)}
-                  type="button"
-                >
-                  <X className="size-4" />
-                </button>
+                {nearTermNote && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">{nearTermNote}</p>
+                )}
               </div>
             );
           })}

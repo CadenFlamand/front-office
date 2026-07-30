@@ -2,6 +2,7 @@
 
 import { getRecentOddsHistory } from "./db/snapshot";
 import { fetchJson } from "./http";
+import { getTeamSos } from "./sos-action";
 import { computeStandingsRanks } from "./standings";
 import { getRosters } from "./sleeper";
 import { type AdviceSignals, computeCoManagerAdvice } from "./team-advice";
@@ -56,17 +57,25 @@ export async function getCoManagerAdvice(
   leagueId: string,
   rosterId: number
 ): Promise<AdviceSignals | null> {
-  const [rosters, { teams }, oddsHistory, currentWeek, tradeDeadlineWeek] = await Promise.all([
-    getRosters(leagueId),
-    getTeamContexts(leagueId),
-    getRecentOddsHistory(leagueId, rosterId),
-    getCurrentWeek(),
-    getTradeDeadlineWeek(leagueId),
-  ]);
+  const [rosters, { teams }, oddsHistory, currentWeek, tradeDeadlineWeek, sosEntries] =
+    await Promise.all([
+      getRosters(leagueId),
+      getTeamContexts(leagueId),
+      getRecentOddsHistory(leagueId, rosterId),
+      getCurrentWeek(),
+      getTradeDeadlineWeek(leagueId),
+      getTeamSos(leagueId, rosterId),
+    ]);
 
   const team = teams.find((t) => t.rosterId === rosterId);
   const ranks = computeStandingsRanks(rosters).get(rosterId);
   if (!team || !ranks) return null;
+
+  // Only starters whose near-term SOS is already brutal become a sell-high
+  // candidate — computeCoManagerAdvice further gates this to Stage 2 only.
+  const sellHighCandidates = sosEntries
+    .filter((entry) => entry.sos.nearTerm.tier === "brutal")
+    .map((entry) => ({ position: entry.position, playerName: entry.name }));
 
   return computeCoManagerAdvice({
     currentWeek,
@@ -77,5 +86,6 @@ export async function getCoManagerAdvice(
     thinPositions: team.thinPositions,
     positionStrength: team.positionStrength,
     oddsHistory,
+    sellHighCandidates,
   });
 }
