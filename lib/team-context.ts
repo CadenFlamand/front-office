@@ -80,7 +80,7 @@ function countStarterSlots(rosterPositions: string[]): Record<string, number> {
 const FAVORITE_ODDS_THRESHOLD = 0.6;
 const CONTENDER_ODDS_THRESHOLD = 0.25;
 
-function getPlayoffBucket(playoffOdds: number): PlayoffBucket {
+export function getPlayoffBucket(playoffOdds: number): PlayoffBucket {
   if (playoffOdds >= FAVORITE_ODDS_THRESHOLD) return "Playoff Favorite";
   if (playoffOdds >= CONTENDER_ODDS_THRESHOLD) return "Playoff Contender";
   return "Playoff Hopeful";

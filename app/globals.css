@@ -39,6 +39,20 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Dashboard "data-terminal" surfaces — dark-mode-only (see .dark below),
+     falling back to the nearest existing token in light mode so this page
+     doesn't need special-casing there. Scoped to new names rather than
+     overriding --card/--background/--muted directly so this doesn't leak
+     into other pages before their own polish pass. */
+  --color-surface-1: var(--surface-1, var(--card));
+  --color-surface-2: var(--surface-2, var(--muted));
+  --color-surface-hairline: var(--surface-hairline, var(--border));
+  --color-copy-bright: var(--copy-bright, var(--foreground));
+  /* Advice-bullet signal colors — same hex in both themes (accent colors,
+     not surfaces), so defined once in :root only. */
+  --color-signal-stream: var(--signal-stream);
+  --color-signal-thin: var(--signal-thin);
+  --color-signal-sos: var(--signal-sos);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -81,6 +95,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  --signal-stream: #EF9F27;
+  --signal-thin: #D85A30;
+  --signal-sos: #378ADD;
 }
 
 .dark {
@@ -115,6 +133,11 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --surface-1: #0e0e0e;
+  --surface-2: #1a1a1a;
+  --surface-hairline: #2a2a2a;
+  --copy-bright: #e0e0e0;
 }
 
 @layer base {

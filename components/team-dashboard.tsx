@@ -3,6 +3,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CoManagerAdvice } from "@/components/co-manager-advice";
-import { PlayerSosList } from "@/components/player-sos-list";
+import type { PlayoffBucket } from "@/lib/team-context";
 
 export interface TeamSummary {
   rosterId: number;
@@ -23,6 +24,9 @@ export interface TeamSummary {
   pointsFor: number;
   pointsAgainst: number;
   playoffOdds: number;
+  bucket: PlayoffBucket;
+  recordRank: number;
+  pfRank: number;
 }
 
 const TEAM_CHANGE_EVENT = "front-office:team-change";
@@ -47,21 +51,52 @@ function getServerSnapshot(): string | null {
   return null;
 }
 
-// Mirrors the tiering lib/team-context.ts uses for its playoff bucket
-// (first-pass thresholds, not yet calibrated against real mid-season data)
-// — duplicated here rather than imported since that module builds a whole
-// TeamContext, not just a color tier, and this component isn't wired to it.
-function oddsTone(odds: number): "positive" | "neutral" | "negative" {
-  if (odds >= 0.6) return "positive";
-  if (odds >= 0.25) return "neutral";
-  return "negative";
-}
-
-const ODDS_TONE_CLASSES: Record<ReturnType<typeof oddsTone>, string> = {
-  positive: "text-emerald-600 dark:text-emerald-400",
-  neutral: "text-foreground",
-  negative: "text-red-600 dark:text-red-400",
+// Bucket-driven, not a re-derived odds threshold — now that TeamSummary
+// carries the real bucket (lib/team-context.ts's getPlayoffBucket), no need
+// to duplicate its tiering logic here the way this file used to.
+// Contender reuses the app's existing ad-hoc "caution" amber tone (not the
+// new --signal-stream token, which means something more specific —
+// QB/TE streaming advice — elsewhere on this page) rather than inventing a
+// second amber with a different meaning. Hopeful deliberately isn't red —
+// this app is redraft/upside-only, so "Hopeful" is a different framing,
+// not a bad one.
+const BUCKET_BADGE_CLASSES: Record<PlayoffBucket, string> = {
+  "Playoff Favorite":
+    "border-emerald-600/30 text-emerald-600 dark:border-emerald-400/30 dark:text-emerald-400",
+  "Playoff Contender":
+    "border-amber-600/30 text-amber-600 dark:border-amber-400/30 dark:text-amber-400",
+  "Playoff Hopeful": "",
 };
+
+const BUCKET_ODDS_CLASSES: Record<PlayoffBucket, string> = {
+  "Playoff Favorite": "text-emerald-600 dark:text-emerald-400",
+  "Playoff Contender": "text-amber-600 dark:text-amber-400",
+  "Playoff Hopeful": "text-copy-bright",
+};
+
+const BUCKET_LABEL: Record<PlayoffBucket, string> = {
+  "Playoff Favorite": "Favorite",
+  "Playoff Contender": "Contender",
+  "Playoff Hopeful": "Hopeful",
+};
+
+// "1" -> "1st", "2" -> "2nd", "13" -> "13th", etc. Duplicated from
+// lib/team-advice.ts's identical helper per this codebase's established
+// per-module convention for small generic helpers.
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
 
 function initials(name: string): string {
   return name
@@ -102,45 +137,50 @@ export function TeamDashboard({
 
   if (selectedTeam) {
     return (
-      <Card>
+      <Card className="bg-surface-1">
         <CardHeader>
           <div className="flex items-center gap-3">
             <Avatar size="lg">
               <AvatarImage src={selectedTeam.avatarUrl} />
               <AvatarFallback>{initials(selectedTeam.teamName)}</AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <CardTitle className="text-xl">{selectedTeam.teamName}</CardTitle>
-              <CardDescription>{selectedTeam.ownerName}</CardDescription>
+            <div className="flex flex-1 items-center gap-2">
+              <CardTitle className="text-base font-medium">
+                {selectedTeam.teamName}
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className={BUCKET_BADGE_CLASSES[selectedTeam.bucket]}
+              >
+                {BUCKET_LABEL[selectedTeam.bucket]}
+              </Badge>
             </div>
             <Button variant="outline" size="sm" onClick={changeTeam}>
               Change team
             </Button>
           </div>
+          <CardDescription>{selectedTeam.ownerName}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
-          <div className="flex flex-col items-center gap-1 rounded-lg border py-4 text-center">
+          <div className="flex flex-col items-center gap-1 py-4 text-center">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
               Playoff Odds
             </p>
             <p
-              className={`text-3xl font-semibold tabular-nums ${ODDS_TONE_CLASSES[oddsTone(selectedTeam.playoffOdds)]}`}
+              className={`text-4xl font-medium tabular-nums ${BUCKET_ODDS_CLASSES[selectedTeam.bucket]}`}
             >
               {(selectedTeam.playoffOdds * 100).toFixed(1)}%
             </p>
           </div>
 
-          <div className="flex gap-8">
-            <Stat label="Record" value={selectedTeam.record} />
-            <Stat label="Points For" value={selectedTeam.pointsFor.toFixed(2)} />
-            <Stat
-              label="Points Against"
-              value={selectedTeam.pointsAgainst.toFixed(2)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <RankTile label="Record Rank" rank={selectedTeam.recordRank} />
+            <RankTile label="Points Rank" rank={selectedTeam.pfRank} />
           </div>
 
-          <CoManagerAdvice leagueId={leagueId} rosterId={selectedTeam.rosterId} />
-          <PlayerSosList leagueId={leagueId} rosterId={selectedTeam.rosterId} />
+          <div className="border-t border-surface-hairline pt-6">
+            <CoManagerAdvice leagueId={leagueId} rosterId={selectedTeam.rosterId} />
+          </div>
         </CardContent>
       </Card>
     );
@@ -182,13 +222,15 @@ export function TeamDashboard({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function RankTile({ label, rank }: { label: string; rank: number }) {
   return (
-    <div>
+    <div className="flex flex-col items-center gap-1 rounded-lg bg-surface-2 py-3 text-center">
       <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </div>
-      <div className="font-medium">{value}</div>
+      <div className="text-lg font-medium text-copy-bright tabular-nums">
+        {ordinal(rank)}
+      </div>
     </div>
   );
 }

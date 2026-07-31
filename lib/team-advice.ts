@@ -259,6 +259,65 @@ function formatThinPositionAction(action: ThinPositionAction): string {
   return `${action.position} is thin: ${action.action}`;
 }
 
+// QB/TE-sourced bullets read as a "streaming" signal (whether that's Stage
+// 1's mindful-flag copy or Stage 2's thin-position-action copy); RB/WR-
+// sourced bullets read as a "thin" signal. Generalizes the visual-polish
+// spec's color table (written against Stage 1's exact wording) across both
+// stages by position group rather than exact copy, since both stages'
+// QB/TE and RB/WR bullets are fundamentally the same *kind* of signal.
+function positionCategory(position: string): "streaming" | "thin" {
+  return position === "QB" || position === "TE" ? "streaming" : "thin";
+}
+
+export type AdviceBulletCategory = "streaming" | "thin" | "sos" | "neutral";
+
+export interface AdviceBullet {
+  category: AdviceBulletCategory;
+  text: string;
+}
+
+// Stage 2 only — the only stage where thinPositionActions and sellHighFlags
+// can co-occur (mindfulFlags and sellHighFlags are each stage-exclusive
+// with the other, so they never need this same treatment). Folds a
+// same-position sell-high note directly into its thin-position bullet
+// rather than showing two separate bullets about the same position — the
+// schedule-driven signal takes over the bullet's category/dot color when
+// it's the reason the bullet exists. A sell-high flag whose position has no
+// matching thin-position bullet stands alone as its own "sos" bullet.
+function computeThinAndSellHighBullets(
+  thinPositionActions: ThinPositionAction[],
+  sellHighFlags: SellHighFlag[]
+): AdviceBullet[] {
+  const sellHighByPosition = new Map<string, SellHighFlag[]>();
+  for (const flag of sellHighFlags) {
+    const flags = sellHighByPosition.get(flag.position) ?? [];
+    flags.push(flag);
+    sellHighByPosition.set(flag.position, flags);
+  }
+
+  const bullets: AdviceBullet[] = [];
+  const mergedPositions = new Set<string>();
+
+  for (const action of thinPositionActions) {
+    const matches = sellHighByPosition.get(action.position);
+    if (matches && matches.length > 0) {
+      mergedPositions.add(action.position);
+      const sellHighText = matches.map((flag) => flag.note).join(" ");
+      bullets.push({ category: "sos", text: `${formatThinPositionAction(action)} ${sellHighText}` });
+    } else {
+      bullets.push({ category: positionCategory(action.position), text: formatThinPositionAction(action) });
+    }
+  }
+
+  for (const flag of sellHighFlags) {
+    if (!mergedPositions.has(flag.position)) {
+      bullets.push({ category: "sos", text: flag.note });
+    }
+  }
+
+  return bullets;
+}
+
 // Single collapsed line summarizing the top-priority signal: a significant
 // odds swing is time-sensitive so it leads when present; then a sell-high
 // flag, since a named-player timing suggestion is more actionable than a
@@ -267,35 +326,41 @@ function formatThinPositionAction(action: ThinPositionAction): string {
 // only and thinPositionActions is never populated in that same stage, so
 // those two never actually conflict — sellHighFlags and
 // thinPositionActions CAN coexist in Stage 2, which is why sellHighFlags
-// is checked first).
-export function formatAdviceCompact(advice: AdviceSignals): string | undefined {
-  if (advice.oddsTrend) return formatOddsTrend(advice.oddsTrend);
-  if (advice.sellHighFlags && advice.sellHighFlags.length > 0) {
-    return advice.sellHighFlags[0].note;
+// is checked first). Compact mode never shows the merged sell-high +
+// thin-position text — it only ever shows one line, so the merge in
+// computeThinAndSellHighBullets (for the expanded list) doesn't apply here.
+export function formatAdviceCompact(advice: AdviceSignals): AdviceBullet | undefined {
+  if (advice.oddsTrend) {
+    return { category: "neutral", text: formatOddsTrend(advice.oddsTrend) };
   }
-  if (advice.diagnosticNote) return advice.diagnosticNote;
+  if (advice.sellHighFlags && advice.sellHighFlags.length > 0) {
+    return { category: "sos", text: advice.sellHighFlags[0].note };
+  }
+  if (advice.diagnosticNote) {
+    return { category: "neutral", text: advice.diagnosticNote };
+  }
   if (advice.mindfulFlags && advice.mindfulFlags.length > 0) {
-    return advice.mindfulFlags[0].note;
+    const flag = advice.mindfulFlags[0];
+    return { category: positionCategory(flag.position), text: flag.note };
   }
   if (advice.thinPositionActions.length > 0) {
-    return formatThinPositionAction(advice.thinPositionActions[0]);
+    const action = advice.thinPositionActions[0];
+    return { category: positionCategory(action.position), text: formatThinPositionAction(action) };
   }
   return undefined;
 }
 
-// One bullet per active signal.
-export function formatAdviceExpanded(advice: AdviceSignals): string[] {
-  const lines: string[] = [];
-  if (advice.diagnosticNote) lines.push(advice.diagnosticNote);
+// One bullet per active signal, in narrative display order (not the
+// priority order formatAdviceCompact uses).
+export function formatAdviceExpanded(advice: AdviceSignals): AdviceBullet[] {
+  const bullets: AdviceBullet[] = [];
+  if (advice.diagnosticNote) bullets.push({ category: "neutral", text: advice.diagnosticNote });
   for (const flag of advice.mindfulFlags ?? []) {
-    lines.push(flag.note);
+    bullets.push({ category: positionCategory(flag.position), text: flag.note });
   }
-  for (const flag of advice.sellHighFlags ?? []) {
-    lines.push(flag.note);
-  }
-  for (const action of advice.thinPositionActions) {
-    lines.push(formatThinPositionAction(action));
-  }
-  if (advice.oddsTrend) lines.push(formatOddsTrend(advice.oddsTrend));
-  return lines;
+  bullets.push(
+    ...computeThinAndSellHighBullets(advice.thinPositionActions, advice.sellHighFlags ?? [])
+  );
+  if (advice.oddsTrend) bullets.push({ category: "neutral", text: formatOddsTrend(advice.oddsTrend) });
+  return bullets;
 }

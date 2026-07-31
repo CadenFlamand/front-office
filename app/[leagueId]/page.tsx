@@ -13,6 +13,8 @@ import {
   getTeamName,
   getUsers,
 } from "@/lib/sleeper";
+import { computeStandingsRanks } from "@/lib/standings";
+import { getPlayoffBucket } from "@/lib/team-context";
 
 export default async function TeamPickerPage({
   params,
@@ -34,10 +36,13 @@ export default async function TeamPickerPage({
   }
   const usersById = new Map(users.map((user) => [user.user_id, user]));
   const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));
+  const ranksByRosterId = computeStandingsRanks(rosters);
 
   const teams: TeamSummary[] = rosters
     .map((roster) => {
       const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined;
+      const odds = oddsByRosterId.get(roster.roster_id) ?? 0;
+      const ranks = ranksByRosterId.get(roster.roster_id);
       return {
         rosterId: roster.roster_id,
         teamName: getTeamName(owner),
@@ -46,7 +51,10 @@ export default async function TeamPickerPage({
         record: getRecord(roster),
         pointsFor: getPointsFor(roster),
         pointsAgainst: getPointsAgainst(roster),
-        playoffOdds: oddsByRosterId.get(roster.roster_id) ?? 0,
+        playoffOdds: odds,
+        bucket: getPlayoffBucket(odds),
+        recordRank: ranks?.recordRank ?? rosters.length,
+        pfRank: ranks?.pfRank ?? rosters.length,
       };
     })
     .sort((a, b) => a.teamName.localeCompare(b.teamName));

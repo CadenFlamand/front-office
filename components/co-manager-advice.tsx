@@ -5,6 +5,8 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
+  type AdviceBullet,
+  type AdviceBulletCategory,
   type AdviceSignals,
   formatAdviceCompact,
   formatAdviceExpanded,
@@ -12,6 +14,26 @@ import {
 import { getCoManagerAdvice } from "@/lib/team-advice-action";
 
 type Format = "compact" | "expanded";
+
+// Dot color maps to signal category, not sequential/arbitrary — a user
+// should be able to tell what kind of signal a bullet is before reading
+// it. "neutral" (diagnostic notes, odds trend) gets the same muted tone
+// used everywhere else in the app for non-actionable text.
+const SIGNAL_DOT_CLASSES: Record<AdviceBulletCategory, string> = {
+  streaming: "bg-signal-stream",
+  thin: "bg-signal-thin",
+  sos: "bg-signal-sos",
+  neutral: "bg-muted-foreground",
+};
+
+function SignalDot({ category }: { category: AdviceBulletCategory }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`mt-1.5 size-1.5 shrink-0 rounded-full ${SIGNAL_DOT_CLASSES[category]}`}
+    />
+  );
+}
 
 // Deterministic ~50/50 split per team so each beta tester sees a stable
 // default format across visits, without any new analytics/assignment infra
@@ -65,15 +87,15 @@ export function CoManagerAdvice({
   if (!advice) return null;
 
   const format = formatOverride ?? hashVariant(`${leagueId}:${rosterId}`);
-  const compactLine = formatAdviceCompact(advice);
-  const expandedLines = formatAdviceExpanded(advice);
-  if (!compactLine && expandedLines.length === 0) return null;
+  const compactBullet = formatAdviceCompact(advice);
+  const expandedBullets = formatAdviceExpanded(advice);
+  if (!compactBullet && expandedBullets.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border p-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Advice
+          Co-manager advice
         </p>
         <Button
           variant="ghost"
@@ -84,17 +106,28 @@ export function CoManagerAdvice({
         </Button>
       </div>
       {format === "compact" ? (
-        <p className="text-sm">{compactLine}</p>
+        compactBullet && <AdviceBulletRow bullet={compactBullet} />
       ) : (
-        <ul className="flex flex-col gap-1.5 text-sm">
-          {expandedLines.map((line, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="text-muted-foreground">•</span>
-              <span>{line}</span>
+        <ul className="flex flex-col gap-2">
+          {expandedBullets.map((bullet, i) => (
+            <li key={i}>
+              <AdviceBulletRow bullet={bullet} />
             </li>
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Generous line-height (advice copy needs to breathe, per the dashboard
+// polish spec) and the brighter "copy-bright" body-text tone rather than
+// default foreground, matching the spec's lighter-gray advice-text call.
+function AdviceBulletRow({ bullet }: { bullet: AdviceBullet }) {
+  return (
+    <div className="flex items-start gap-2 text-[13px] leading-relaxed text-copy-bright">
+      <SignalDot category={bullet.category} />
+      <span>{bullet.text}</span>
     </div>
   );
 }
