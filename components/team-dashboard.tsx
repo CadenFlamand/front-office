@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CoManagerAdvice } from "@/components/co-manager-advice";
+import { TeamRosterCard } from "@/components/team-roster";
 import type { PlayoffBucket } from "@/lib/team-context";
 
 export interface TeamSummary {
@@ -126,50 +127,54 @@ export function TeamDashboard({
 
   if (selectedTeam) {
     return (
-      <Card className="bg-surface-1">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <Avatar size="lg">
-              <AvatarImage src={selectedTeam.avatarUrl} />
-              <AvatarFallback>{initials(selectedTeam.teamName)}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-1 items-center gap-2">
-              <CardTitle className="text-base font-medium">
-                {selectedTeam.teamName}
-              </CardTitle>
-              <Badge variant="outline" className={BUCKET_BADGE_CLASSES}>
-                {BUCKET_LABEL[selectedTeam.bucket]}
-              </Badge>
+      <div className="flex flex-col gap-4">
+        <Card className="bg-surface-1">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Avatar size="lg">
+                <AvatarImage src={selectedTeam.avatarUrl} />
+                <AvatarFallback>{initials(selectedTeam.teamName)}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-1 items-center gap-2">
+                <CardTitle className="text-base font-medium">
+                  {selectedTeam.teamName}
+                </CardTitle>
+                <Badge variant="outline" className={BUCKET_BADGE_CLASSES}>
+                  {BUCKET_LABEL[selectedTeam.bucket]}
+                </Badge>
+              </div>
+              <Button variant="outline" size="sm" onClick={changeTeam}>
+                Change team
+              </Button>
             </div>
-            <Button variant="outline" size="sm" onClick={changeTeam}>
-              Change team
-            </Button>
-          </div>
-          <CardDescription>{selectedTeam.ownerName}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-6">
-          <div className="flex flex-col items-center gap-1 py-4 text-center">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Playoff Odds
-            </p>
-            <p
-              className={`text-4xl font-medium tabular-nums ${BUCKET_ODDS_CLASSES[selectedTeam.bucket]}`}
-            >
-              {(selectedTeam.playoffOdds * 100).toFixed(1)}
-              <span className="text-brand-gold">%</span>
-            </p>
-          </div>
+            <CardDescription>{selectedTeam.ownerName}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-6">
+            <div className="flex flex-col items-center gap-1 py-4 text-center">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Playoff Odds
+              </p>
+              <p
+                className={`text-4xl font-medium tabular-nums ${BUCKET_ODDS_CLASSES[selectedTeam.bucket]}`}
+              >
+                {(selectedTeam.playoffOdds * 100).toFixed(1)}
+                <span className="text-brand-gold">%</span>
+              </p>
+            </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <RankTile label="Record Rank" rank={selectedTeam.recordRank} />
-            <RankTile label="Points Rank" rank={selectedTeam.pfRank} />
-          </div>
+            <div className="grid grid-cols-2 gap-3">
+              <RankTile label="Record Rank" rank={selectedTeam.recordRank} />
+              <RankTile label="Points Rank" rank={selectedTeam.pfRank} />
+            </div>
 
-          <div className="border-t border-surface-hairline pt-6">
-            <CoManagerAdvice leagueId={leagueId} rosterId={selectedTeam.rosterId} />
-          </div>
-        </CardContent>
-      </Card>
+            <div className="border-t border-surface-hairline pt-6">
+              <CoManagerAdvice leagueId={leagueId} rosterId={selectedTeam.rosterId} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <TeamRosterCard leagueId={leagueId} rosterId={selectedTeam.rosterId} />
+      </div>
     );
   }
 
