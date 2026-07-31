@@ -53,6 +53,11 @@
   --color-signal-stream: var(--signal-stream);
   --color-signal-thin: var(--signal-thin);
   --color-signal-sos: var(--signal-sos);
+  /* Brand gold, sampled directly from the logo file's "OFFICE" wordmark
+     (average of ~14.5k gold pixels: #CEA85E) rather than guessed — same
+     hex in both themes, same "accent color, not a surface" reasoning as
+     the signal-* colors above. */
+  --color-brand-gold: var(--brand-gold);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -99,6 +104,8 @@
   --signal-stream: #EF9F27;
   --signal-thin: #D85A30;
   --signal-sos: #378ADD;
+
+  --brand-gold: #CEA85E;
 }
 
 .dark {

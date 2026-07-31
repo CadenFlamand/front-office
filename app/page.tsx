@@ -11,7 +11,10 @@ export default function Home() {
   return (
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <header className="flex items-center justify-between border-b bg-background px-6 py-4 sm:px-8">
-        <span className="text-sm font-semibold tracking-tight">Front Office</span>
+        <span className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <img src="/mark.png" alt="" className="size-6" />
+          Front <span className="text-brand-gold">Office</span>
+        </span>
         <ThemeToggle />
       </header>
 

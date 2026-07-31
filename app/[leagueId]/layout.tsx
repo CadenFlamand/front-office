@@ -27,9 +27,10 @@ export default async function LeagueLayout({
       <nav className="flex items-center gap-1 border-b bg-background px-4 py-3 sm:px-6">
         <Link
           href="/"
-          className="mr-2 shrink-0 text-sm font-semibold tracking-tight whitespace-nowrap transition-colors hover:text-primary"
+          className="mr-2 flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight whitespace-nowrap transition-colors hover:text-primary"
         >
-          Front Office
+          <img src="/mark.png" alt="" className="size-6" />
+          Front <span className="text-brand-gold">Office</span>
         </Link>
         {/* Scrolls horizontally on narrow viewports instead of wrapping or
             pushing the wordmark/toggle off-screen — there isn't room for

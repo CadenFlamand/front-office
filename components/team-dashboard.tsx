@@ -51,22 +51,11 @@ function getServerSnapshot(): string | null {
   return null;
 }
 
-// Bucket-driven, not a re-derived odds threshold — now that TeamSummary
-// carries the real bucket (lib/team-context.ts's getPlayoffBucket), no need
-// to duplicate its tiering logic here the way this file used to.
-// Contender reuses the app's existing ad-hoc "caution" amber tone (not the
-// new --signal-stream token, which means something more specific —
-// QB/TE streaming advice — elsewhere on this page) rather than inventing a
-// second amber with a different meaning. Hopeful deliberately isn't red —
-// this app is redraft/upside-only, so "Hopeful" is a different framing,
-// not a bad one.
-const BUCKET_BADGE_CLASSES: Record<PlayoffBucket, string> = {
-  "Playoff Favorite":
-    "border-emerald-600/30 text-emerald-600 dark:border-emerald-400/30 dark:text-emerald-400",
-  "Playoff Contender":
-    "border-amber-600/30 text-amber-600 dark:border-amber-400/30 dark:text-amber-400",
-  "Playoff Hopeful": "",
-};
+// Uniform brand-gold across all three bucket states — replaces the
+// earlier per-bucket tone scheme (green/amber/neutral), which was a
+// placeholder pending the real brand color. The odds-number tone below
+// still differentiates by bucket; only the badge itself is gold now.
+const BUCKET_BADGE_CLASSES = "border-brand-gold/30 text-brand-gold";
 
 const BUCKET_ODDS_CLASSES: Record<PlayoffBucket, string> = {
   "Playoff Favorite": "text-emerald-600 dark:text-emerald-400",
@@ -148,10 +137,7 @@ export function TeamDashboard({
               <CardTitle className="text-base font-medium">
                 {selectedTeam.teamName}
               </CardTitle>
-              <Badge
-                variant="outline"
-                className={BUCKET_BADGE_CLASSES[selectedTeam.bucket]}
-              >
+              <Badge variant="outline" className={BUCKET_BADGE_CLASSES}>
                 {BUCKET_LABEL[selectedTeam.bucket]}
               </Badge>
             </div>
@@ -169,7 +155,8 @@ export function TeamDashboard({
             <p
               className={`text-4xl font-medium tabular-nums ${BUCKET_ODDS_CLASSES[selectedTeam.bucket]}`}
             >
-              {(selectedTeam.playoffOdds * 100).toFixed(1)}%
+              {(selectedTeam.playoffOdds * 100).toFixed(1)}
+              <span className="text-brand-gold">%</span>
             </p>
           </div>
 
