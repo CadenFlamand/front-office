@@ -44,6 +44,20 @@ CREATE TABLE IF NOT EXISTS tracked_leagues (
   last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Free-text feedback from beta testers. Deliberately a separate table from
+-- beta_signups rather than an extra column on it: signups are one-time-
+-- per-email (UNIQUE, enforced by submitBetaSignup()'s duplicate check),
+-- while the same person can send feedback multiple times over the beta —
+-- a different shape/cardinality, not just more columns on the same row.
+CREATE TABLE IF NOT EXISTS beta_feedback (
+  id BIGSERIAL PRIMARY KEY,
+  email TEXT NOT NULL,
+  feedback TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS beta_feedback_email_idx ON beta_feedback (email);
+
 -- One row per team per completed season, filled in separately (and later)
 -- once a season actually ends — not written by captureSnapshot().
 CREATE TABLE IF NOT EXISTS season_outcomes (
