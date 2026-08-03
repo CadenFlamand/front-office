@@ -58,6 +58,44 @@ CREATE TABLE IF NOT EXISTS beta_feedback (
 
 CREATE INDEX IF NOT EXISTS beta_feedback_email_idx ON beta_feedback (email);
 
+-- Manually-entered leagues (no Sleeper connection) — teams/rosters/records
+-- typed in and edited by hand. id is generated as "manual-<uuid>" in
+-- lib/manual-league.ts and used directly as the app's leagueId route
+-- param; real Sleeper league IDs are always plain numeric strings, so
+-- there's no collision risk and no separate "source" flag is needed
+-- anywhere else in the app — everything branches on this ID's prefix.
+CREATE TABLE IF NOT EXISTS manual_leagues (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS manual_teams (
+  id BIGSERIAL PRIMARY KEY,
+  league_id TEXT NOT NULL REFERENCES manual_leagues(id) ON DELETE CASCADE,
+  team_name TEXT NOT NULL,
+  wins INTEGER NOT NULL DEFAULT 0,
+  losses INTEGER NOT NULL DEFAULT 0,
+  ties INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS manual_teams_league_idx ON manual_teams (league_id);
+
+-- sleeper_player_id is a real Sleeper player ID, used purely as a stable
+-- key into the existing global player catalog (getAllPlayers()) and
+-- FantasyCalc values (getPlayerValues()) for name/position/trade-value —
+-- no live roster sync, the user adds/removes these by hand.
+CREATE TABLE IF NOT EXISTS manual_team_players (
+  id BIGSERIAL PRIMARY KEY,
+  team_id BIGINT NOT NULL REFERENCES manual_teams(id) ON DELETE CASCADE,
+  sleeper_player_id TEXT NOT NULL,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (team_id, sleeper_player_id)
+);
+
+CREATE INDEX IF NOT EXISTS manual_team_players_team_idx ON manual_team_players (team_id);
+
 -- One row per team per completed season, filled in separately (and later)
 -- once a season actually ends — not written by captureSnapshot().
 CREATE TABLE IF NOT EXISTS season_outcomes (

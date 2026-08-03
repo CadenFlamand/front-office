@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,13 @@ export function LeagueEntry() {
           {isPending ? "Checking…" : "Continue"}
         </Button>
       </form>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Don&apos;t have a Sleeper league?{" "}
+        <Link href="/start/manual" className="underline underline-offset-2 hover:text-foreground">
+          Enter one manually
+        </Link>
+      </p>
     </div>
   );
 }

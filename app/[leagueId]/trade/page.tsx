@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 
 import { Separator } from "@/components/ui/separator";
 import { isNotFound } from "@/lib/http";
+import { isManualLeagueId } from "@/lib/manual-league";
+import { getManualTeamContexts } from "@/lib/manual-team-context";
 import { getTeamContexts } from "@/lib/team-context";
 
 import { TradeAnalyzer } from "./trade-analyzer";
@@ -20,7 +22,9 @@ export default async function TradePage({
 
   let teams, values;
   try {
-    ({ teams, values } = await getTeamContexts(leagueId));
+    ({ teams, values } = isManualLeagueId(leagueId)
+      ? await getManualTeamContexts(leagueId)
+      : await getTeamContexts(leagueId));
   } catch (error) {
     if (isNotFound(error)) notFound();
     throw error;

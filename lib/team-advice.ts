@@ -164,7 +164,7 @@ function mindfulNote(position: "QB" | "RB" | "WR" | "TE"): string {
   return `${position} is thin — keep an eye on the waiver wire here. Streaming isn't really viable at ${position}, so this is more about staying alert than making a move yet.`;
 }
 
-function computeMindfulPositionFlags(
+export function computeMindfulPositionFlags(
   thinPositions: string[],
   positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>
 ): MindfulPositionFlag[] {

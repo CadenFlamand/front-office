@@ -3,6 +3,7 @@
 import { getDefenseRankings } from "./defense-rankings";
 import { getPlayerValues } from "./fantasycalc";
 import { fetchJson } from "./http";
+import { isManualLeagueId } from "./manual-league";
 import { getTeamOpponents } from "./nfl-schedule";
 import { getLeague, getRosters } from "./sleeper";
 import { computePlayerSos, NEAR_TERM_WINDOW_WEEKS, type PlayerSos } from "./sos";
@@ -40,16 +41,25 @@ async function getPlayoffEndWeek(leagueId: string): Promise<number> {
     : DEFAULT_PLAYOFF_END_WEEK;
 }
 
-// Duplicated per this codebase's established convention (identical helper
-// already exists in lib/db/snapshot.ts, lib/trade-odds-action.ts, and
-// lib/team-advice-action.ts).
-async function getCurrentWeek(): Promise<number> {
+// Extends the getCurrentWeek() helper duplicated elsewhere in this
+// codebase (lib/db/snapshot.ts, lib/trade-odds-action.ts,
+// lib/team-advice-action.ts) with `season`, which the same /state/nfl
+// response already carries — needed for manual leagues below, which have
+// no Sleeper league to read a season from.
+async function getSeasonState(): Promise<{ week: number; season: string }> {
   const res = await fetch(NFL_STATE_URL, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Failed to fetch current NFL week (${res.status})`);
   }
-  const state = (await res.json()) as { week?: number; display_week?: number };
-  return state.week && state.week > 0 ? state.week : (state.display_week ?? 1);
+  const state = (await res.json()) as {
+    week?: number;
+    display_week?: number;
+    season?: string;
+  };
+  return {
+    week: state.week && state.week > 0 ? state.week : (state.display_week ?? 1),
+    season: state.season ?? String(new Date().getFullYear()),
+  };
 }
 
 const EMPTY_SOS: PlayerSos = {
@@ -139,13 +149,20 @@ export interface PlayerSosEntry {
  * rosterId in, does its own fetching internally), for the dashboard.
  */
 export async function getTeamSos(leagueId: string, rosterId: number): Promise<PlayerSosEntry[]> {
-  const [league, leagueScoring, rosters, currentWeek, playoffEndWeek] = await Promise.all([
-    getLeague(leagueId),
-    getLeagueScoring(leagueId),
-    getRosters(leagueId),
-    getCurrentWeek(),
-    getPlayoffEndWeek(leagueId),
-  ]);
+  // This function is roster-lookup-shaped (Sleeper rosterId -> Sleeper
+  // roster.starters) and isn't reachable for manual leagues anywhere in the
+  // app today — guarded here rather than attempting a Sleeper roster fetch
+  // that would 404 against a synthetic ID, in case that changes later.
+  if (isManualLeagueId(leagueId)) return [];
+
+  const [league, leagueScoring, rosters, { week: currentWeek }, playoffEndWeek] =
+    await Promise.all([
+      getLeague(leagueId),
+      getLeagueScoring(leagueId),
+      getRosters(leagueId),
+      getSeasonState(),
+      getPlayoffEndWeek(leagueId),
+    ]);
 
   const roster = rosters.find((r) => r.roster_id === rosterId);
   if (!roster) return [];
@@ -196,10 +213,20 @@ export async function getTradeSos(
 ): Promise<Map<string, PlayerSos>> {
   if (players.length === 0) return new Map();
 
-  const [league, leagueScoring, currentWeek, playoffEndWeek] = await Promise.all([
+  if (isManualLeagueId(leagueId)) {
+    // No Sleeper league settings to read for a manual league — same
+    // defaults lib/manual-team-context.ts uses (full PPR) plus this file's
+    // own existing playoff-end-week fallback, rather than a Sleeper league
+    // fetch that would 404 against a synthetic ID. Season/week still come
+    // from the real (league-agnostic) current NFL state.
+    const { week: currentWeek, season } = await getSeasonState();
+    return computeSosForPlayers(season, currentWeek, DEFAULT_PLAYOFF_END_WEEK, 1, players);
+  }
+
+  const [league, leagueScoring, { week: currentWeek }, playoffEndWeek] = await Promise.all([
     getLeague(leagueId),
     getLeagueScoring(leagueId),
-    getCurrentWeek(),
+    getSeasonState(),
     getPlayoffEndWeek(leagueId),
   ]);
 

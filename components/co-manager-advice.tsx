@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { getManualCoManagerAdvice } from "@/lib/manual-advice-action";
+import { isManualLeagueId } from "@/lib/manual-league";
 import {
   type AdviceBullet,
   type AdviceBulletCategory,
@@ -62,7 +64,9 @@ export function CoManagerAdvice({
       setAdvice(null);
       setFormatOverride(null);
       try {
-        const result = await getCoManagerAdvice(leagueId, rosterId);
+        const result = isManualLeagueId(leagueId)
+          ? await getManualCoManagerAdvice(leagueId, rosterId)
+          : await getCoManagerAdvice(leagueId, rosterId);
         // A newer request may have started (and resolved) while this one
         // was in flight — ignore this response so a stale team's advice
         // can't overwrite a fresher one.

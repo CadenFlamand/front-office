@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { isNotFound } from "@/lib/http";
+import { isManualLeagueId } from "@/lib/manual-league";
 import { getPlayoffOdds } from "@/lib/playoff-odds";
 
 export const metadata = {
@@ -16,6 +17,25 @@ export default async function OddsPage({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
+
+  if (isManualLeagueId(leagueId)) {
+    return (
+      <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
+        <div className="flex w-full max-w-2xl flex-col gap-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-semibold tracking-tight">Playoff Odds</h1>
+            <p className="text-zinc-600 dark:text-zinc-400">Not available for manual leagues.</p>
+          </div>
+
+          <Separator />
+
+          <p className="rounded-lg border py-10 text-center text-sm text-muted-foreground">
+            Playoff odds need real schedule data — connect a Sleeper league to unlock this.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   let results;
   try {

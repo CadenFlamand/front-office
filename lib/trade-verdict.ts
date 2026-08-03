@@ -50,7 +50,7 @@ function countAtPositions(
 // First-pass heuristic: "dominant" = simple majority count among a side's
 // players. Ties break toward whichever position was added first — doesn't
 // weigh trade value or multi-position eligibility.
-function dominantPosition(
+export function dominantPosition(
   ids: string[],
   playersById: Map<string, TradeablePlayer>
 ): string | null {

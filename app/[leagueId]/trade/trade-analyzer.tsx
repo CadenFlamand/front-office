@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SosTierBadge } from "@/components/sos-tier-badge";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
+import { isManualLeagueId } from "@/lib/manual-league";
+import { computeManualTradeVerdict } from "@/lib/manual-trade-verdict";
 import { formatNearTermTradeNote, type PlayerSos } from "@/lib/sos";
 import { getTradeSos } from "@/lib/sos-action";
 import type { PlayoffBucket, TeamContext } from "@/lib/team-context";
@@ -31,6 +33,7 @@ export function TradeAnalyzer({
   teams: TeamContext[];
   leagueId: string;
 }) {
+  const manual = isManualLeagueId(leagueId);
   const [giveIds, setGiveIds] = useState<string[]>([]);
   const [receiveIds, setReceiveIds] = useState<string[]>([]);
 
@@ -86,6 +89,12 @@ export function TradeAnalyzer({
   const [oddsRetryKey, setOddsRetryKey] = useState(0);
 
   useEffect(() => {
+    // No playoff-odds simulation exists for a manual league (no real
+    // schedule/scoring data to run it against) — odds/isOddsPending/
+    // oddsError all just stay at their initial falsy values, and the
+    // verdict below is computed from trade value alone instead.
+    if (manual) return;
+
     const requestId = ++oddsRequestId.current;
     startOddsTransition(async () => {
       if (!selectedRosterId || !hasPlayers) {
@@ -111,6 +120,7 @@ export function TradeAnalyzer({
     });
   }, [
     leagueId,
+    manual,
     selectedRosterId,
     giveIds,
     receiveIds,
@@ -152,9 +162,13 @@ export function TradeAnalyzer({
   }, [leagueId, selectedIds, playersById, startSosTransition]);
 
   const verdict = useMemo(() => {
-    if (!selectedTeam || !odds) return null;
+    if (!selectedTeam || !hasPlayers) return null;
+    if (manual) {
+      return computeManualTradeVerdict({ diff, giveIds, receiveIds, playersById });
+    }
+    if (!odds) return null;
     return computeTradeVerdict({ diff, odds, team: selectedTeam, giveIds, receiveIds, playersById });
-  }, [selectedTeam, odds, diff, giveIds, receiveIds, playersById]);
+  }, [selectedTeam, hasPlayers, manual, odds, diff, giveIds, receiveIds, playersById]);
 
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
 
@@ -219,10 +233,14 @@ export function TradeAnalyzer({
       />
 
       <div className="flex flex-col gap-3">
-        {selectedTeam && hasPlayers && odds && verdict ? (
+        {selectedTeam && hasPlayers && verdict ? (
           <>
             <TeamContextLine team={selectedTeam} verdict={verdict} />
-            <OddsDiffLine odds={odds} tone={verdict.tone} isPending={isOddsPending} />
+            {/* No real before/after odds for a manual league — the
+                verdict headline above already speaks to value alone. */}
+            {!manual && odds && (
+              <OddsDiffLine odds={odds} tone={verdict.tone} isPending={isOddsPending} />
+            )}
           </>
         ) : (
           selectedTeam &&

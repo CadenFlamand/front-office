@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +25,14 @@ export interface TeamSummary {
   record: string;
   pointsFor: number;
   pointsAgainst: number;
-  playoffOdds: number;
+  // Both undefined for manual leagues — no real schedule/scoring data to
+  // simulate odds or compute a points-for rank from. undefined is the
+  // signal this component uses to show the "connect Sleeper" explanation
+  // instead of leaving those slots blank/broken.
+  playoffOdds?: number;
   bucket: PlayoffBucket;
   recordRank: number;
-  pfRank: number;
+  pfRank?: number;
 }
 
 const TEAM_CHANGE_EVENT = "front-office:team-change";
@@ -126,6 +131,13 @@ export function TeamDashboard({
   const selectedTeam = teams.find((team) => team.rosterId === selectedId);
 
   if (selectedTeam) {
+    // undefined playoffOdds is the signal a team came from a manually-
+    // entered league (no real schedule/scoring data to simulate odds or a
+    // PF rank from) — driven off the data shape already flowing through
+    // props, rather than re-deriving manual-ness from the leagueId string
+    // in this already-presentational component.
+    const isManual = selectedTeam.playoffOdds === undefined;
+
     return (
       <div className="flex flex-col gap-4">
         <Card className="bg-surface-1">
@@ -142,30 +154,57 @@ export function TeamDashboard({
                 <Badge variant="outline" className={BUCKET_BADGE_CLASSES}>
                   {BUCKET_LABEL[selectedTeam.bucket]}
                 </Badge>
+                {isManual && (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    Manual league
+                  </Badge>
+                )}
               </div>
-              <Button variant="outline" size="sm" onClick={changeTeam}>
-                Change team
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                {isManual && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href={`/${leagueId}/manage`} />}
+                  >
+                    Edit league
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={changeTeam}>
+                  Change team
+                </Button>
+              </div>
             </div>
             <CardDescription>{selectedTeam.ownerName}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
-            <div className="flex flex-col items-center gap-1 py-4 text-center">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Playoff Odds
+            {selectedTeam.playoffOdds === undefined ? (
+              <p className="rounded-lg border py-4 text-center text-sm text-muted-foreground">
+                Playoff odds need real schedule data — connect a Sleeper league to unlock this.
               </p>
-              <p
-                className={`text-4xl font-medium tabular-nums ${BUCKET_ODDS_CLASSES[selectedTeam.bucket]}`}
-              >
-                {(selectedTeam.playoffOdds * 100).toFixed(1)}
-                <span className="text-brand-gold">%</span>
-              </p>
-            </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1 py-4 text-center">
+                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Playoff Odds
+                </p>
+                <p
+                  className={`text-4xl font-medium tabular-nums ${BUCKET_ODDS_CLASSES[selectedTeam.bucket]}`}
+                >
+                  {(selectedTeam.playoffOdds * 100).toFixed(1)}
+                  <span className="text-brand-gold">%</span>
+                </p>
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3">
+            {selectedTeam.pfRank === undefined ? (
               <RankTile label="Record Rank" rank={selectedTeam.recordRank} />
-              <RankTile label="Points Rank" rank={selectedTeam.pfRank} />
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <RankTile label="Record Rank" rank={selectedTeam.recordRank} />
+                <RankTile label="Points Rank" rank={selectedTeam.pfRank} />
+              </div>
+            )}
 
             <div className="border-t border-surface-hairline pt-6">
               <CoManagerAdvice leagueId={leagueId} rosterId={selectedTeam.rosterId} />

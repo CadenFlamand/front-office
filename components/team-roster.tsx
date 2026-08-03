@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { isManualLeagueId } from "@/lib/manual-league";
+import { getManualTeamRoster } from "@/lib/manual-roster-action";
 import { getTeamRoster, type RosterPlayer, type TeamRoster } from "@/lib/roster-action";
 
 export function TeamRosterCard({
@@ -16,13 +18,20 @@ export function TeamRosterCard({
   const [roster, setRoster] = useState<TeamRoster | null>(null);
   const [isPending, startTransition] = useTransition();
   const requestId = useRef(0);
+  const manual = isManualLeagueId(leagueId);
 
   useEffect(() => {
     const id = ++requestId.current;
     startTransition(async () => {
       setRoster(null);
       try {
-        const result = await getTeamRoster(leagueId, rosterId);
+        // Manual leagues have no starters/bench split (no real weekly
+        // lineup data) — a flat list is stashed in `starters` and `bench`
+        // stays empty; the Bench section is hidden entirely below rather
+        // than rendered empty.
+        const result = manual
+          ? { starters: await getManualTeamRoster(rosterId), bench: [] }
+          : await getTeamRoster(leagueId, rosterId);
         // A newer request may have started (and resolved) while this one
         // was in flight — ignore this response so a stale team's roster
         // can't overwrite a fresher one.
@@ -33,7 +42,7 @@ export function TeamRosterCard({
         setRoster(null);
       }
     });
-  }, [leagueId, rosterId]);
+  }, [leagueId, rosterId, manual]);
 
   if (isPending && !roster) {
     return (
@@ -51,10 +60,12 @@ export function TeamRosterCard({
   return (
     <Card className="bg-surface-1">
       <CardContent className="flex flex-col gap-6">
-        <RosterSection label="Starters" players={roster.starters} />
-        <div className="border-t border-surface-hairline pt-6">
-          <RosterSection label="Bench" players={roster.bench} />
-        </div>
+        <RosterSection label={manual ? "Roster" : "Starters"} players={roster.starters} />
+        {!manual && (
+          <div className="border-t border-surface-hairline pt-6">
+            <RosterSection label="Bench" players={roster.bench} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -10,7 +10,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { getManualLeague, getManualRosters, getManualTeams } from "@/lib/db/manual-leagues";
 import { isNotFound } from "@/lib/http";
+import {
+  computeManualStandingsRanks,
+  formatManualRecord,
+  isManualLeagueId,
+} from "@/lib/manual-league";
 import { getPlayoffOdds } from "@/lib/playoff-odds";
 import {
   getAllPlayers,
@@ -66,6 +72,73 @@ export default async function LeaguePage({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
+
+  if (isManualLeagueId(leagueId)) {
+    const league = await getManualLeague(leagueId);
+    if (!league) notFound();
+
+    const [manualTeams, rosters, allPlayers] = await Promise.all([
+      getManualTeams(leagueId),
+      getManualRosters(leagueId),
+      getAllPlayers(),
+    ]);
+
+    const rankByTeamId = computeManualStandingsRanks(manualTeams);
+    const sortedTeams = [...manualTeams].sort(
+      (a, b) => (rankByTeamId.get(a.id) ?? 0) - (rankByTeamId.get(b.id) ?? 0)
+    );
+
+    return (
+      <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
+        <div className="flex w-full max-w-3xl flex-col gap-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-semibold tracking-tight">{league.name}</h1>
+            <p className="text-zinc-600 dark:text-zinc-400">
+              Manually-entered league · {manualTeams.length} teams
+            </p>
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-6">
+            {sortedTeams.map((team, index) => {
+              const playerIds = rosters.get(team.id) ?? [];
+              return (
+                <Card key={team.id}>
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <span className="w-5 text-sm font-medium text-muted-foreground">
+                        {index + 1}
+                      </span>
+                      <div className="flex flex-1 items-center justify-between gap-2">
+                        <CardTitle>{team.teamName}</CardTitle>
+                        <Badge variant="secondary">{formatManualRecord(team)}</Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <RosterSection title="Roster">
+                      {playerIds.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No players yet.</p>
+                      ) : (
+                        playerIds.map((id) => (
+                          <PlayerRow
+                            key={id}
+                            label={allPlayers[id]?.position ?? "-"}
+                            name={getPlayerName(id, allPlayers)}
+                          />
+                        ))
+                      )}
+                    </RosterSection>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   let league, rosters, users, players, playoffOdds;
   try {

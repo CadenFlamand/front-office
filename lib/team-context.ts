@@ -124,7 +124,7 @@ const TOP20_RANK = 20;
 // roster-count), which are deliberately different from computeThinPositions()'s
 // league-format-relative bar above. Only counts FantasyCalc-valued players,
 // same "no value = not real depth" philosophy as computeThinPositions().
-function computePositionStrength(
+export function computePositionStrength(
   rosterPlayerIds: string[],
   valuesById: Map<string, TradeablePlayer>
 ): Record<(typeof STARTER_POSITIONS)[number], PositionStrength> {

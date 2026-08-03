@@ -6,7 +6,10 @@ export type TradeLabel = "Roster Tune-Up" | "Value Add" | "Win-Now Swing" | "Blo
 // A trade reads as "large" if either signal alone is big (a lopsided value
 // swap OR a real odds swing is enough on its own), and "small" only if
 // both signals are quiet.
-const SMALL_VALUE_DIFF_THRESHOLD = 1000;
+// Exported for lib/manual-trade-verdict.ts's tone classification, which
+// reuses the same "this doesn't move the needle much" magnitude rather
+// than defining a second one.
+export const SMALL_VALUE_DIFF_THRESHOLD = 1000;
 // Exported for lib/trade-verdict.ts's value-gap caution, which fires off the
 // same "this is a big value swing" magnitude rather than redefining its own.
 export const LARGE_VALUE_DIFF_THRESHOLD = 4000;
