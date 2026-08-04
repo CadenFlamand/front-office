@@ -113,9 +113,15 @@ export default function Home() {
             <h2 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
               Don&apos;t be this guy.
             </h2>
-            <p className="text-lg font-medium text-brand-gold">
-              Front Office gets you to the playoffs — by any means necessary.
-            </p>
+            <Button
+              size="lg"
+              className="gap-1.5 bg-white px-5 text-black hover:bg-zinc-200"
+              nativeButton={false}
+              render={<Link href="/start" />}
+            >
+              Try Front Office now
+              <ArrowRight className="size-4" />
+            </Button>
           </div>
 
           <video
