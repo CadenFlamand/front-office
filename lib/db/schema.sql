@@ -111,3 +111,21 @@ CREATE TABLE IF NOT EXISTS season_outcomes (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (league_id, roster_id, season)
 );
+
+-- Distilled per-season positional scoring tiers, computed from 13 seasons
+-- (2012-2025) of real NFL performance data by
+-- scripts/ingest-position-baselines.ts. The source CSVs (~340MB at the
+-- largest) never touch production — only this small summary table does.
+-- One row per season so multi-season averaging can happen at query time
+-- (lib/position-baselines.ts) without re-running ingestion to change the
+-- window.
+CREATE TABLE IF NOT EXISTS position_scoring_baselines (
+  id BIGSERIAL PRIMARY KEY,
+  season TEXT NOT NULL,
+  position TEXT NOT NULL,
+  scoring_format TEXT NOT NULL, -- 'standard' | 'half_ppr' | 'ppr'
+  tier TEXT NOT NULL, -- 'top_12' | 'top_24' | 'top_36' | 'replacement_level'
+  points_threshold NUMERIC NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (season, position, scoring_format, tier)
+);
