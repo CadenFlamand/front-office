@@ -88,6 +88,51 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Don't be this guy — deliberately dark/gold regardless of theme,
+          the first beat after the hero: stakes/humor before we explain why
+          the product works. Clips are muted/looped/autoplaying (see
+          punishment-1/2.mov -> .mp4/.webm conversion in public/videos/),
+          shown large and in full color as real content, not background
+          texture. */}
+      <section className="relative overflow-hidden border-t border-zinc-800 bg-black px-6 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-10 lg:flex-row lg:justify-center">
+          <video
+            aria-hidden="true"
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster="/videos/punishment-1-poster.jpg"
+            className="aspect-[9/16] w-64 -rotate-6 rounded-2xl object-cover shadow-2xl shadow-black/50 ring-1 ring-white/10 sm:w-72 lg:w-80"
+          >
+            <source src="/videos/punishment-1.webm" type="video/webm" />
+            <source src="/videos/punishment-1.mp4" type="video/mp4" />
+          </video>
+
+          <div className="flex flex-col items-center gap-4 text-center">
+            <h2 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+              Don&apos;t be this guy.
+            </h2>
+            <p className="text-lg font-medium text-brand-gold">
+              Front Office gets you to the playoffs — by any means necessary.
+            </p>
+          </div>
+
+          <video
+            aria-hidden="true"
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster="/videos/punishment-2-poster.jpg"
+            className="aspect-[9/16] w-64 rotate-6 rounded-2xl object-cover shadow-2xl shadow-black/50 ring-1 ring-white/10 sm:w-72 lg:w-80"
+          >
+            <source src="/videos/punishment-2.webm" type="video/webm" />
+            <source src="/videos/punishment-2.mp4" type="video/mp4" />
+          </video>
+        </div>
+      </section>
+
       {/* Features */}
       <section className="border-t px-6 py-20 sm:px-8 sm:py-28">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
@@ -155,47 +200,6 @@ export default function Home() {
               </CardContent>
             </Card>
           </div>
-        </div>
-      </section>
-
-      {/* Don't be this guy — deliberately dark/gold regardless of theme,
-          a beat of stakes/humor before the final ask. Clips are muted,
-          looped, and dimmed to stay decorative rather than a hero
-          focal point (see punishment-1/2.mov -> .mp4/.webm conversion in
-          public/videos/). */}
-      <section className="relative overflow-hidden border-t border-zinc-800 bg-black px-6 py-24 text-center sm:px-8 sm:py-32">
-        <video
-          aria-hidden="true"
-          autoPlay
-          muted
-          loop
-          playsInline
-          poster="/videos/punishment-1-poster.jpg"
-          className="pointer-events-none absolute top-1/2 -left-10 hidden aspect-[9/16] w-48 -translate-y-1/2 -rotate-6 rounded-2xl object-cover opacity-25 grayscale sm:block sm:w-56"
-        >
-          <source src="/videos/punishment-1.webm" type="video/webm" />
-          <source src="/videos/punishment-1.mp4" type="video/mp4" />
-        </video>
-        <video
-          aria-hidden="true"
-          autoPlay
-          muted
-          loop
-          playsInline
-          poster="/videos/punishment-2-poster.jpg"
-          className="pointer-events-none absolute top-1/2 -right-10 hidden aspect-[9/16] w-48 -translate-y-1/2 rotate-6 rounded-2xl object-cover opacity-25 grayscale sm:block sm:w-56"
-        >
-          <source src="/videos/punishment-2.webm" type="video/webm" />
-          <source src="/videos/punishment-2.mp4" type="video/mp4" />
-        </video>
-
-        <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-4">
-          <h2 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            Don&apos;t be this guy.
-          </h2>
-          <p className="text-lg font-medium text-brand-gold">
-            Front Office gets you to the playoffs — by any means necessary.
-          </p>
         </div>
       </section>
 
