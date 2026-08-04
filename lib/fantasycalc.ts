@@ -1,3 +1,4 @@
+import { getFantasyProsValues } from "./fantasypros-values";
 import { fetchJson } from "./http";
 import { getAllPlayers } from "./sleeper";
 
@@ -78,24 +79,36 @@ export async function getPlayerValues(
     return cached.players;
   }
 
-  const [data, allPlayersRaw] = await Promise.all([
+  const [data, allPlayersRaw, fantasyProsById] = await Promise.all([
     fetchJson<FantasyCalcEntry[]>(url, { cache: "no-store" }),
     getAllPlayers(),
+    getFantasyProsValues(),
   ]);
   const allPlayers = allPlayersRaw as unknown as Record<string, SleeperInjuryFields>;
+  const remainingFantasyPros = new Map(fantasyProsById);
 
-  const players = data
+  // Composite value = average of FantasyCalc + FantasyPros' converted
+  // value when both sources have a player; the single source's value when
+  // only one does. positionRank stays FantasyCalc's own market-value rank
+  // for players FantasyCalc prices — only .value is blended, to keep this
+  // scoped to trade value rather than rippling into every rank-based check
+  // elsewhere in the app (computeThinPositions(), production pace, etc.).
+  const players: TradeablePlayer[] = data
     .filter((entry) => entry.player.sleeperId)
     .map((entry) => {
       const sleeperId = entry.player.sleeperId as string;
       const sleeperPlayer: SleeperInjuryFields | undefined = allPlayers[sleeperId];
+      const fantasyPros = remainingFantasyPros.get(sleeperId);
+      remainingFantasyPros.delete(sleeperId);
 
       return {
         sleeperId,
         name: entry.player.name,
         position: entry.player.position,
         team: entry.player.maybeTeam,
-        value: entry.value,
+        value: fantasyPros
+          ? Math.round((entry.value + fantasyPros.convertedValue) / 2)
+          : entry.value,
         positionRank: entry.positionRank,
         injuryStatus: sleeperPlayer?.injury_status ?? null,
         // Sleeper omits years_exp for essentially nothing in FantasyCalc's
@@ -106,6 +119,25 @@ export async function getPlayerValues(
         yearsExperience: sleeperPlayer?.years_exp ?? 0,
       };
     });
+
+  // Players FantasyCalc doesn't price at all (its pool tops out around 200;
+  // FantasyPros' export goes much deeper) still get a value from
+  // FantasyPros alone, using its own position-relative rank rather than
+  // fabricating one — this meaningfully deepens the "valued player" pool
+  // that drives thin-position/depth checks elsewhere, not just trade value.
+  for (const [sleeperId, fantasyPros] of remainingFantasyPros) {
+    const sleeperPlayer: SleeperInjuryFields | undefined = allPlayers[sleeperId];
+    players.push({
+      sleeperId,
+      name: fantasyPros.playerName,
+      position: fantasyPros.position,
+      team: allPlayersRaw[sleeperId]?.team ?? null,
+      value: fantasyPros.convertedValue,
+      positionRank: fantasyPros.positionRank,
+      injuryStatus: sleeperPlayer?.injury_status ?? null,
+      yearsExperience: sleeperPlayer?.years_exp ?? 0,
+    });
+  }
 
   cache.set(url, { players, fetchedAt: Date.now() });
   return players;

@@ -45,3 +45,8 @@ next-env.d.ts
 # raw video source files — kept locally as ffmpeg conversion input, never
 # deployed; only the compressed .mp4/.webm/poster.jpg outputs are served
 public/videos/*.mov
+
+# weekly rankings CSV exports — re-downloaded by hand and dropped here to
+# re-run scripts/ingest-fantasypros-values.ts; never deployed, only the
+# converted fantasypros_values table rows are
+data/*.csv

@@ -129,3 +129,26 @@ CREATE TABLE IF NOT EXISTS position_scoring_baselines (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (season, position, scoring_format, tier)
 );
+
+-- Current FantasyPros overall-rank snapshot, converted to a FantasyCalc-
+-- comparable value scale by scripts/ingest-fantasypros-values.ts. One row
+-- per player (no season/week dimension, "current" like FantasyCalc's own
+-- live values) — re-running the script with a fresh weekly CSV export
+-- upserts and replaces, it doesn't accumulate history. Read by
+-- lib/fantasycalc.ts's getPlayerValues() to blend into FantasyCalc's value
+-- (average when both sources have a player, this value alone when only
+-- FantasyPros does).
+CREATE TABLE IF NOT EXISTS fantasypros_values (
+  sleeper_player_id TEXT PRIMARY KEY,
+  player_name TEXT NOT NULL,
+  position TEXT NOT NULL,
+  -- FantasyPros' own position-relative rank (e.g. "WR45" -> 45) — used as
+  -- TradeablePlayer.positionRank for players FantasyCalc doesn't price at
+  -- all, since fabricating one at blend time would be a guess and this
+  -- isn't.
+  position_rank INTEGER NOT NULL,
+  overall_rank INTEGER NOT NULL,
+  tier INTEGER NOT NULL,
+  converted_value NUMERIC NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
