@@ -52,7 +52,7 @@ function slotEligiblePositions(slot: string): string[] {
   return slot.includes("FLEX") ? ["RB", "WR", "TE"] : [slot];
 }
 
-function countStarterSlots(rosterPositions: string[]): Record<string, number> {
+export function countStarterSlots(rosterPositions: string[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const position of STARTER_POSITIONS) counts[position] = 0;
 

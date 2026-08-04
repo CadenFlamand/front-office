@@ -2,6 +2,7 @@
 
 import { getRecentOddsHistory } from "./db/snapshot";
 import { fetchJson } from "./http";
+import { computePositionsBelowHistoricalBaseline } from "./production-pace";
 import { getTeamSos } from "./sos-action";
 import { computeStandingsRanks } from "./standings";
 import { getRosters } from "./sleeper";
@@ -57,7 +58,7 @@ export async function getCoManagerAdvice(
   leagueId: string,
   rosterId: number
 ): Promise<AdviceSignals | null> {
-  const [rosters, { teams }, oddsHistory, currentWeek, tradeDeadlineWeek, sosEntries] =
+  const [rosters, { teams, values }, oddsHistory, currentWeek, tradeDeadlineWeek, sosEntries] =
     await Promise.all([
       getRosters(leagueId),
       getTeamContexts(leagueId),
@@ -77,6 +78,17 @@ export async function getCoManagerAdvice(
     .filter((entry) => entry.sos.nearTerm.tier === "brutal")
     .map((entry) => ({ position: entry.position, playerName: entry.name }));
 
+  // Depends on team.rosterPlayerIds, so it can't join the batch above — a
+  // real-production check (lib/production-pace.ts) against the historical
+  // baselines, independent of and secondary to the market-value-based
+  // thinPositions check.
+  const valuesById = new Map(values.map((player) => [player.sleeperId, player]));
+  const positionsBelowHistoricalBaseline = await computePositionsBelowHistoricalBaseline(
+    leagueId,
+    team.rosterPlayerIds,
+    valuesById
+  );
+
   return computeCoManagerAdvice({
     currentWeek,
     tradeDeadlineWeek,
@@ -87,5 +99,6 @@ export async function getCoManagerAdvice(
     positionStrength: team.positionStrength,
     oddsHistory,
     sellHighCandidates,
+    positionsBelowHistoricalBaseline,
   });
 }

@@ -50,6 +50,12 @@ export interface AdviceInput {
   thinPositions: string[];
   // From TeamContext.positionStrength (lib/team-context.ts).
   positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>;
+  // From lib/production-pace.ts — positions where no rostered player is
+  // actually scoring like a startable option this season, per real
+  // historical baselines. A secondary/confidence check against
+  // thinPositions above, never a replacement for it — see the doc comment
+  // on computeMindfulPositionFlags() for how the two get blended.
+  positionsBelowHistoricalBaseline: string[];
   // Ascending by week.
   oddsHistory: { week: number; playoffOdds: number }[];
   // Starters whose near-term SOS (lib/sos.ts) tier is already "brutal" —
@@ -117,10 +123,23 @@ const THIN_POSITION_ACTIONS: Record<"QB" | "RB" | "WR" | "TE", string> = {
   TE: "Stay patient here rather than trading for it — the position is volatile enough that a waiver-wire find frequently breaks out into a top-5 option just by landing volume or role. Don't overpay unless a true elite option is available via trade.",
 };
 
-function computeThinPositionActions(thinPositions: string[]): ThinPositionAction[] {
+// Only ever reinforces an already-rank-flagged position's copy with a
+// supporting clause when real production agrees — never adds a position
+// here on production's say-so alone, since that would mean recommending a
+// trade/waiver action the rank system itself doesn't corroborate.
+const PRODUCTION_BACKUP_CLAUSE =
+  " Recent scoring history backs this up too — your current options here aren't producing like startable players at the position.";
+
+function computeThinPositionActions(
+  thinPositions: string[],
+  positionsBelowHistoricalBaseline: string[] = []
+): ThinPositionAction[] {
+  const productionFlagged = new Set(positionsBelowHistoricalBaseline);
   return thinPositions.flatMap((position) => {
     const action = THIN_POSITION_ACTIONS[position as keyof typeof THIN_POSITION_ACTIONS];
-    return action ? [{ position, action }] : [];
+    if (!action) return [];
+    const text = productionFlagged.has(position) ? action + PRODUCTION_BACKUP_CLAUSE : action;
+    return [{ position, action: text }];
   });
 }
 
@@ -157,27 +176,54 @@ function isRbWrThin(strength: PositionStrength, alreadyFlagged: boolean): boolea
   return rankThin || countThin;
 }
 
-function mindfulNote(position: "QB" | "RB" | "WR" | "TE"): string {
-  if (position === "QB" || position === "TE") {
-    return `${position} is weak — worth considering streaming the position early rather than locking into one starter, since that's a normal strategy at ${position}.`;
+function mindfulNote(
+  position: "QB" | "RB" | "WR" | "TE",
+  flaggedByRank: boolean,
+  flaggedByProduction: boolean
+): string {
+  const base =
+    position === "QB" || position === "TE"
+      ? `${position} is weak — worth considering streaming the position early rather than locking into one starter, since that's a normal strategy at ${position}.`
+      : `${position} is thin — keep an eye on the waiver wire here. Streaming isn't really viable at ${position}, so this is more about staying alert than making a move yet.`;
+
+  if (flaggedByRank && flaggedByProduction) {
+    return `${base} Real scoring data backs this up too — nobody here is producing like a startable option based on recent-season history.`;
   }
-  return `${position} is thin — keep an eye on the waiver wire here. Streaming isn't really viable at ${position}, so this is more about staying alert than making a move yet.`;
+  if (!flaggedByRank && flaggedByProduction) {
+    return `${position} looks fine by trade value, but isn't scoring like a startable option based on recent-season history — worth keeping an eye on before assuming this position is settled.`;
+  }
+  return base;
 }
 
+// Blends two independent signals per position: computeThinPositions()'s
+// market-value-based rank check (thinPositions — unchanged, still the only
+// thing that decides whether a position gets flagged at all when the two
+// signals disagree in the "rank says thin, production doesn't" direction —
+// that direction is deliberately not checked here) and
+// lib/production-pace.ts's real-production check
+// (positionsBelowHistoricalBaseline). A position can be flagged by either,
+// both, or neither; when both agree the note is reinforced, and when only
+// production disagrees (looks fine by value, isn't producing) that's
+// surfaced as new information the rank-only system would have missed.
 export function computeMindfulPositionFlags(
   thinPositions: string[],
-  positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>
+  positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>,
+  positionsBelowHistoricalBaseline: string[] = []
 ): MindfulPositionFlag[] {
   const alreadyFlagged = new Set(thinPositions);
+  const productionFlagged = new Set(positionsBelowHistoricalBaseline);
   const flags: MindfulPositionFlag[] = [];
 
   for (const position of ["QB", "RB", "WR", "TE"] as const) {
     const strength = positionStrength[position];
-    const flagged =
+    const flaggedByRank =
       position === "QB" || position === "TE"
         ? isQbTeWeak(strength, alreadyFlagged.has(position))
         : isRbWrThin(strength, alreadyFlagged.has(position));
-    if (flagged) flags.push({ position, note: mindfulNote(position) });
+    const flaggedByProduction = productionFlagged.has(position);
+    if (flaggedByRank || flaggedByProduction) {
+      flags.push({ position, note: mindfulNote(position, flaggedByRank, flaggedByProduction) });
+    }
   }
 
   return flags;
@@ -234,12 +280,18 @@ export function computeCoManagerAdvice(input: AdviceInput): AdviceSignals {
     // diagnostic stage, same gating (inverted) as thinPositionActions below.
     mindfulFlags:
       stage === "diagnostic"
-        ? computeMindfulPositionFlags(input.thinPositions, input.positionStrength)
+        ? computeMindfulPositionFlags(
+            input.thinPositions,
+            input.positionStrength,
+            input.positionsBelowHistoricalBaseline
+          )
         : undefined,
     // No trade/waiver action is prescribed in the diagnostic stage — it's a
     // framing note only.
     thinPositionActions:
-      stage === "diagnostic" ? [] : computeThinPositionActions(input.thinPositions),
+      stage === "diagnostic"
+        ? []
+        : computeThinPositionActions(input.thinPositions, input.positionsBelowHistoricalBaseline),
     sellHighFlags:
       stage === "active_trading" ? computeSellHighFlags(input.sellHighCandidates) : undefined,
     oddsTrend: computeOddsTrend(input.oddsHistory),
