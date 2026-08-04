@@ -73,12 +73,13 @@ export function countStarterSlots(rosterPositions: string[]): Record<string, num
   return counts;
 }
 
-// First-pass thresholds, not yet calibrated against real mid-season data.
-// The only sample run so far (a simulated test league) spread odds roughly
-// 17%-91% across 12 teams; these cut points split that spread into thirds.
-// Revisit once we have odds from an in-progress real season to check against.
-const FAVORITE_ODDS_THRESHOLD = 0.6;
-const CONTENDER_ODDS_THRESHOLD = 0.25;
+// Round-number playoff-odds cutoffs: 70%+ is a clear favorite, under 30% is
+// a real longshot, and the 30-70% band in between is a genuine contender —
+// not yet calibrated against real mid-season odds spreads (see the caveats
+// on lib/playoff-odds.ts's actuals/projection blending), so revisit once a
+// real season's in-progress odds are available to sanity-check against.
+const FAVORITE_ODDS_THRESHOLD = 0.7;
+const CONTENDER_ODDS_THRESHOLD = 0.3;
 
 export function getPlayoffBucket(playoffOdds: number): PlayoffBucket {
   if (playoffOdds >= FAVORITE_ODDS_THRESHOLD) return "Playoff Favorite";
