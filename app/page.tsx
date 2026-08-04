@@ -32,8 +32,8 @@ export default function Home() {
             </Badge>
 
             <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-[3.4rem]">
-              <span className="block text-zinc-400 dark:text-zinc-500">
-                Built for one goal: the playoffs.
+              <span className="block text-brand-gold">
+                Your ticket to the playoffs
               </span>
               <span className="mt-2 block text-zinc-950 dark:text-white">
                 Front Office tells you what the trade does to your season.
