@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# raw video source files — kept locally as ffmpeg conversion input, never
+# deployed; only the compressed .mp4/.webm/poster.jpg outputs are served
+public/videos/*.mov
