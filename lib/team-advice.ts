@@ -184,7 +184,7 @@ function mindfulNote(
   const base =
     position === "QB" || position === "TE"
       ? `${position} is weak — worth considering streaming the position early rather than locking into one starter, since that's a normal strategy at ${position}.`
-      : `${position} is thin — keep an eye on the waiver wire here. Streaming isn't really viable at ${position}, so this is more about staying alert than making a move yet.`;
+      : `${position} is thin — consider trading depth from elsewhere to shore it up, or keep an eye on the waiver wire for opportunity.`;
 
   if (flaggedByRank && flaggedByProduction) {
     return `${base} Real scoring data backs this up too — nobody here is producing like a startable option based on recent-season history.`;
