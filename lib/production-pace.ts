@@ -61,28 +61,62 @@ function nearestTier(rank: number): BaselineTier {
   )[1];
 }
 
+export interface PlayerProductionPace {
+  playerId: string;
+  position: string;
+  pointsToDate: number;
+  // Points-to-date extrapolated across the full regular season at the
+  // current rate.
+  pace: number;
+  // The startable-production threshold for this player's position, from
+  // lib/position-baselines.ts.
+  baseline: number;
+  // pace / baseline. >= 1 means this player is actually producing like a
+  // startable option at the position, < 1 means they aren't.
+  ratio: number;
+}
+
+export interface LeagueProductionPace {
+  completedWeeks: number;
+  // Positions with both starter slots in this league and ingested baseline
+  // data to compare against. A position absent here is one this check can't
+  // speak to at all — which is deliberately different from a position that's
+  // present and failing.
+  baselineByPosition: Map<string, number>;
+  // Keyed by Sleeper player ID, covering every valued player at a position
+  // in baselineByPosition. Empty before MIN_COMPLETED_WEEKS_FOR_PACE, so an
+  // absent player always reads as "no signal" rather than "no production".
+  paceByPlayer: Map<string, PlayerProductionPace>;
+}
+
 /**
- * Positions where no rostered (FantasyCalc-valued) player is actually
- * scoring like a startable option this season, based on real weekly
- * production compared against historical positional baselines
- * (lib/position-baselines.ts) — independent of, and a check against,
- * computeThinPositions()'s market-value-based rank check in
- * lib/team-context.ts. Returns [] before there's enough of-the-season
- * sample to trust a pace extrapolation.
+ * Real season-to-date production for every valued player in the league,
+ * extrapolated to a full season and measured against historical positional
+ * baselines (lib/position-baselines.ts).
+ *
+ * Computed league-wide in one pass because the underlying matchup payloads
+ * already carry every roster's scoring, and the per-position baseline
+ * lookups are uncached DB round trips — doing this per team would repeat
+ * both for no benefit. Returns an empty paceByPlayer before there's enough
+ * of-the-season sample to trust a pace extrapolation.
  */
-export async function computePositionsBelowHistoricalBaseline(
+export async function computeLeagueProductionPace(
   leagueId: string,
-  rosterPlayerIds: string[],
   valuesById: Map<string, TradeablePlayer>
-): Promise<string[]> {
+): Promise<LeagueProductionPace> {
   const [league, leagueDetail, currentWeek] = await Promise.all([
     getLeague(leagueId),
     getLeagueDetail(leagueId),
     getCurrentWeek(),
   ]);
 
-  const completedWeeks = currentWeek - 1;
-  if (completedWeeks < MIN_COMPLETED_WEEKS_FOR_PACE) return [];
+  const completedWeeks = Math.max(currentWeek - 1, 0);
+  const empty: LeagueProductionPace = {
+    completedWeeks,
+    baselineByPosition: new Map(),
+    paceByPlayer: new Map(),
+  };
+  if (completedWeeks < MIN_COMPLETED_WEEKS_FOR_PACE) return empty;
 
   const regularSeasonWeeks =
     leagueDetail.settings?.playoff_week_start && leagueDetail.settings.playoff_week_start > 1
@@ -95,9 +129,8 @@ export async function computePositionsBelowHistoricalBaseline(
     Array.from({ length: completedWeeks }, (_, i) => getMatchups(leagueId, i + 1))
   );
 
-  // Every roster in the league appears in each week's response, but we only
-  // ever look up IDs from our own rosterPlayerIds below, so summing every
-  // matchup's players_points into one pool (rather than filtering by
+  // Every roster in the league appears in each week's response, so summing
+  // every matchup's players_points into one pool (rather than filtering by
   // roster_id first) is simplest — a player only ever belongs to one roster
   // at a time anyway.
   const pointsToDate = new Map<string, number>();
@@ -109,27 +142,83 @@ export async function computePositionsBelowHistoricalBaseline(
     }
   }
 
-  const flagged: string[] = [];
-
+  const baselineByPosition = new Map<string, number>();
   for (const position of STARTER_POSITIONS) {
     const threshold = requiredStarters[position];
     if (!threshold) continue;
-
     const tier = nearestTier(threshold * league.total_rosters);
     const baseline = await getPositionBaseline(position, format, tier, { seasons: 3 });
-    if (baseline === null) continue; // no baseline data — nothing to compare against
+    // A non-positive threshold would mean broken ingested data, not a bar
+    // every player clears — treated as "can't speak to this position", same
+    // as having no row at all.
+    if (baseline === null || baseline <= 0) continue;
+    baselineByPosition.set(position, baseline);
+  }
 
-    const positionPlayerIds = rosterPlayerIds.filter(
-      (id) => valuesById.get(id)?.position === position
-    );
-
-    const anyClearsBaseline = positionPlayerIds.some((id) => {
-      const pace = ((pointsToDate.get(id) ?? 0) / completedWeeks) * regularSeasonWeeks;
-      return pace >= baseline;
+  const paceByPlayer = new Map<string, PlayerProductionPace>();
+  for (const player of valuesById.values()) {
+    const baseline = baselineByPosition.get(player.position);
+    if (baseline === undefined) continue;
+    const points = pointsToDate.get(player.sleeperId) ?? 0;
+    const pace = (points / completedWeeks) * regularSeasonWeeks;
+    paceByPlayer.set(player.sleeperId, {
+      playerId: player.sleeperId,
+      position: player.position,
+      pointsToDate: points,
+      pace,
+      baseline,
+      ratio: baseline > 0 ? pace / baseline : 0,
     });
+  }
 
+  return { completedWeeks, baselineByPosition, paceByPlayer };
+}
+
+/**
+ * Positions where no rostered player on this specific roster is actually
+ * scoring like a startable option — a check against computeThinPositions()'s
+ * market-value-based rank check in lib/team-context.ts, never a replacement
+ * for it.
+ *
+ * A position is only flagged when there's real data to flag it on: positions
+ * absent from baselineByPosition (no starter slots, or no ingested baseline)
+ * are skipped entirely rather than counted as failing.
+ */
+export function computePositionsBelowBaselineForRoster(
+  leaguePace: LeagueProductionPace,
+  rosterPlayerIds: string[]
+): string[] {
+  const flagged: string[] = [];
+
+  for (const position of STARTER_POSITIONS) {
+    if (!leaguePace.baselineByPosition.has(position)) continue;
+
+    const anyClearsBaseline = rosterPlayerIds.some((id) => {
+      const pace = leaguePace.paceByPlayer.get(id);
+      return pace?.position === position && pace.ratio >= 1;
+    });
+    // A position with nobody rostered at it has nobody clearing the bar, so
+    // it flags — same as before this was extracted.
     if (!anyClearsBaseline) flagged.push(position);
   }
 
   return flagged;
+}
+
+/**
+ * Single-roster convenience wrapper, preserving the original signature for
+ * lib/team-advice-action.ts. Callers needing this for more than one roster
+ * (the trade finder) should call computeLeagueProductionPace() once and feed
+ * computePositionsBelowBaselineForRoster() instead.
+ */
+export async function computePositionsBelowHistoricalBaseline(
+  leagueId: string,
+  rosterPlayerIds: string[],
+  valuesById: Map<string, TradeablePlayer>
+): Promise<string[]> {
+  // No separate too-early guard needed: before MIN_COMPLETED_WEEKS_FOR_PACE
+  // baselineByPosition is empty too, so every position is skipped and this
+  // returns [] — the same thing the pre-extraction version did.
+  const leaguePace = await computeLeagueProductionPace(leagueId, valuesById);
+  return computePositionsBelowBaselineForRoster(leaguePace, rosterPlayerIds);
 }
