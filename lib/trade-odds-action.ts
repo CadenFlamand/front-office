@@ -34,7 +34,15 @@ async function getCurrentNflWeek(): Promise<number> {
     });
     if (!res.ok) return 1;
     const state = (await res.json()) as { week?: number; display_week?: number };
-    return state.week && state.week > 0 ? state.week : (state.display_week ?? 1);
+    const week = state.week && state.week > 0 ? state.week : (state.display_week ?? 0);
+    // Both fields read 0 during the preseason, and `?? 1` doesn't catch that
+    // (0 isn't nullish) — which meant this returned week 0, whose projections
+    // endpoint responds with a full player list of all-zero points. Every
+    // candidate then tied at 0 and assignLineup() below fell back to picking
+    // by array order. Week 1 is the right target in the preseason anyway:
+    // it's the next week that will actually be played, which is also what
+    // getPlayoffOdds() independently derives from matchup data.
+    return week > 0 ? week : 1;
   } catch {
     return 1;
   }
@@ -130,12 +138,18 @@ function assignLineup(startingSlots: string[], candidates: Candidate[]): string[
  * the trade analyzer can preview a trade's playoff impact without mutating
  * any real Sleeper data.
  *
- * The hypothetical lineup isn't just the remaining starters plus whatever
- * was received appended on — that would let a received bench-quality
- * player count as a full extra starter. Instead it's rebuilt position-slot
- * by position-slot (see assignLineup) from the remaining starters and the
- * received players, so a received player only affects the projection if
- * they'd actually earn a starting spot.
+ * Neither lineup is just "starters plus whatever was received appended on"
+ * — that would let a received bench-quality player count as a full extra
+ * starter. Both are rebuilt position-slot by position-slot (see
+ * assignLineup) from the full roster available to that side of the trade,
+ * so a received player only affects the projection if they'd actually earn
+ * a starting spot, and a traded-away starter's slot gets backfilled from
+ * the bench the way a real manager would fill it.
+ *
+ * Because both sides are optimized, `before` here is the team's best-lineup
+ * odds, which can read slightly higher than the odds shown on the dashboard
+ * — those reflect the manager's actual current starters. The two agree
+ * whenever the current lineup is already the highest-projecting one.
  */
 export async function getOddsForTrade(
   leagueId: string,
@@ -155,10 +169,11 @@ export async function getOddsForTrade(
   );
 
   const giveSet = new Set(giveIds);
-  const remainingStarterIds = (roster.starters ?? []).filter(
-    (id) => id && id !== "0" && !giveSet.has(id)
-  );
-  const candidateIds = [...remainingStarterIds, ...receiveIds];
+  const currentRosterIds = (roster.players ?? []).filter((id) => id && id !== "0");
+  const postTradeRosterIds = [
+    ...currentRosterIds.filter((id) => !giveSet.has(id)),
+    ...receiveIds,
+  ];
 
   const [allPlayers, currentWeek] = await Promise.all([
     getAllPlayers(),
@@ -166,18 +181,32 @@ export async function getOddsForTrade(
   ]);
   const projectedPtsById = await getWeeklyProjectedPoints(league.season, currentWeek);
 
-  const candidates: Candidate[] = candidateIds.flatMap((id) => {
-    const position = allPlayers[id]?.position;
-    if (!position) return [];
-    return [{ playerId: id, position, projectedPts: projectedPtsById.get(id) ?? 0 }];
-  });
+  function toCandidates(ids: string[]): Candidate[] {
+    return ids.flatMap((id) => {
+      const position = allPlayers[id]?.position;
+      if (!position) return [];
+      return [{ playerId: id, position, projectedPts: projectedPtsById.get(id) ?? 0 }];
+    });
+  }
 
-  const hypotheticalStarters = assignLineup(startingSlots, candidates);
-  const rosterOverrides = new Map([[rosterId, hypotheticalStarters]]);
+  // Both sides of the comparison are the best lineup fieldable from that
+  // roster, so the delta isolates the trade itself.
+  //
+  // The hypothetical side used to draw only from (remaining starters +
+  // received), never the bench. Trading away a starter left that slot
+  // permanently empty — the team was charged the full starter's points and
+  // credited nothing back — which penalized every trade that gave up a
+  // starter, i.e. almost all of them. Drawing from the whole roster fixes
+  // that, but it also means the lineup is now optimized rather than taken
+  // as-is, so the baseline has to be optimized the same way or the
+  // comparison silently rewards re-setting a lineup as if it were the
+  // trade's doing.
+  const currentStarters = assignLineup(startingSlots, toCandidates(currentRosterIds));
+  const postTradeStarters = assignLineup(startingSlots, toCandidates(postTradeRosterIds));
 
   const [baseline, hypothetical] = await Promise.all([
-    getPlayoffOdds(leagueId),
-    getPlayoffOdds(leagueId, { rosterOverrides }),
+    getPlayoffOdds(leagueId, { rosterOverrides: new Map([[rosterId, currentStarters]]) }),
+    getPlayoffOdds(leagueId, { rosterOverrides: new Map([[rosterId, postTradeStarters]]) }),
   ]);
 
   const before = baseline.find((t) => t.rosterId === rosterId)?.playoffOdds;
