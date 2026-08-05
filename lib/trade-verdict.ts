@@ -28,7 +28,9 @@ export interface TradeVerdictInput {
 // Below this, a fresh Monte Carlo run (see lib/playoff-odds.ts) would
 // plausibly flip the sign on its own — treated as "no meaningful impact"
 // rather than a real improve/hurt so the headline doesn't wobble on noise.
-const NEAR_ZERO_ODDS_DELTA = 0.01; // 1 percentage point
+// Exported for lib/win-win.ts, which needs the same "is this swing real or
+// is it simulation noise" bar rather than defining a second one.
+export const NEAR_ZERO_ODDS_DELTA = 0.01; // 1 percentage point
 
 function classifyOddsDelta(oddsDelta: number): VerdictTone {
   if (oddsDelta > NEAR_ZERO_ODDS_DELTA) return "positive";

@@ -65,6 +65,19 @@ export function toLineupCandidates(
   });
 }
 
+/** The best lineup fieldable from `playerIds`, as Sleeper IDs. */
+export function bestLineup(
+  startingSlots: string[],
+  playerIds: string[],
+  positionByPlayerId: Map<string, string>,
+  projectedPtsById: Map<string, number>
+): string[] {
+  return assignLineup(
+    startingSlots,
+    toLineupCandidates(playerIds, positionByPlayerId, projectedPtsById)
+  );
+}
+
 /**
  * Total projected points of the best lineup fieldable from `playerIds`. This
  * is the quantity a roster override actually changes in

@@ -253,7 +253,23 @@ function resolvedFlags(
     )
   );
 
-  return before.filter((flag) => !after.has(`${flag.position}:${flag.reason}`));
+  const cleared = before.filter((flag) => !after.has(`${flag.position}:${flag.reason}`));
+
+  // A "thin" flag is pure roster count, so *any* body at the position clears
+  // it — which let a 244-value RB swap for a 321-value WR qualify as filling
+  // a need for both teams. Clearing thin only counts when what arrives is
+  // actually startable, using the same league-format bar the surplus check
+  // uses. "Weak" needs no equivalent guard: it's rank-based already, so it
+  // can only clear if a genuinely good player arrived.
+  return cleared.filter((flag) => {
+    if (flag.reason !== "thin") return true;
+    const bar = (input.requiredStarters[flag.position] ?? 0) * input.totalRosters;
+    return receiveIds.some((id) => {
+      if (input.playersById.get(id)?.position !== flag.position) return false;
+      const rank = input.compositeRanks.get(id);
+      return rank !== undefined && rank <= bar;
+    });
+  });
 }
 
 function packagesUpTo(ids: string[], maxSize: number): string[][] {
