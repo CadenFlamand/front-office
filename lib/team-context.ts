@@ -48,6 +48,8 @@ function getLeagueScoring(leagueId: string): Promise<SleeperLeagueScoring> {
 const STARTER_POSITIONS = ["QB", "RB", "WR", "TE"] as const;
 const STARTER_POSITION_SET = new Set<string>(STARTER_POSITIONS);
 
+export type StarterPosition = (typeof STARTER_POSITIONS)[number];
+
 function slotEligiblePositions(slot: string): string[] {
   return slot.includes("FLEX") ? ["RB", "WR", "TE"] : [slot];
 }
@@ -178,6 +180,140 @@ export function computePositionStrength(
   }
 
   return strength as Record<(typeof STARTER_POSITIONS)[number], PositionStrength>;
+}
+
+// Fixed-cutoff weak/thin thresholds, applied to computePositionStrength()'s
+// composite-ranked output above. Deliberately a different bar from
+// computeThinPositions()'s league-format-relative check — "is your best guy
+// actually good" (QB/TE) and "do you have enough good/enough bodies"
+// (RB/WR), rather than "can you fill your exact starting lineup".
+//
+// These live here, next to the positionStrength they read, rather than in
+// lib/team-advice.ts where they started — two consumers now need the same
+// evaluation (co-manager advice's copy, and the trade finder's need
+// signal), and duplicating four thresholds across both is exactly the
+// second-definition problem the rest of this codebase avoids.
+const QB_WEAK_RANK_THRESHOLD = 7;
+const TE_WEAK_RANK_THRESHOLD = 5;
+const RB_WR_MIN_TOP20_OPTIONS = 2;
+const RB_WR_THIN_ROSTER_COUNT_THRESHOLD = 3; // flags at 3 or fewer rostered
+
+const QB_TE_WEAK_RANK_THRESHOLD: Record<"QB" | "TE", number> = {
+  QB: QB_WEAK_RANK_THRESHOLD,
+  TE: TE_WEAK_RANK_THRESHOLD,
+};
+
+// "weak" = ranking-driven (or production-driven, see flaggedByRank below).
+// "thin" = RB/WR roster-count only, an independent signal that can fire
+// alongside "weak" for the same position.
+export type WeakPositionReason = "weak" | "thin";
+
+export interface WeakPositionFlag {
+  position: StarterPosition;
+  reason: WeakPositionReason;
+  // For reason "weak": whether the roster-composition check (composite rank,
+  // or computeThinPositions()'s league-format bar as a safety net) fired, as
+  // opposed to this being a production-only flag where the rankings actually
+  // look fine. Always true for reason "thin", which is a pure roster-count
+  // fact.
+  flaggedByRank: boolean;
+  // Whether real production pace (lib/production-pace.ts) agrees. Always
+  // false for reason "thin" — production only ever blends with "weak".
+  backedByProduction: boolean;
+  // Carried through so consumers don't have to reach back into
+  // positionStrength to render or score the flag.
+  rosterCount: number;
+}
+
+// QB/TE: streaming 1-2 deep is a normal, intentional strategy, so roster
+// count isn't a signal here — only whether your best option is actually good.
+function isQbTeWeak(
+  position: "QB" | "TE",
+  strength: PositionStrength,
+  alreadyFlagged: boolean
+): boolean {
+  if (alreadyFlagged) return true;
+  return (
+    strength.bestPositionRank === null ||
+    strength.bestPositionRank > QB_TE_WEAK_RANK_THRESHOLD[position]
+  );
+}
+
+// RB/WR "weak" (ranking) and "thin" (roster count) are independent signals,
+// not OR'd into one — a team can be one, the other, both, or neither.
+// "Weak" has no "but you have one elite top-12 guy" escape hatch; it's
+// purely whether there are 2+ genuinely startable (top-20) options.
+function isRbWrWeak(strength: PositionStrength, alreadyFlagged: boolean): boolean {
+  if (alreadyFlagged) return true;
+  return strength.top20Count < RB_WR_MIN_TOP20_OPTIONS;
+}
+
+function isRbWrThinByCount(strength: PositionStrength): boolean {
+  return strength.rosterCount <= RB_WR_THIN_ROSTER_COUNT_THRESHOLD;
+}
+
+/**
+ * The single evaluation of "which positions is this roster weak or thin at",
+ * blending the composite-rank checks above with lib/production-pace.ts's
+ * real-production check. Returns structured flags with no display copy —
+ * lib/team-advice.ts turns these into co-manager bullets, and the trade
+ * finder scores against them directly.
+ *
+ * Emission order is QB, TE, then RB and WR (weak before thin within each),
+ * which is the order the advice UI renders.
+ */
+export function computeWeakPositionFlags(
+  thinPositions: string[],
+  positionStrength: Record<StarterPosition, PositionStrength>,
+  positionsBelowHistoricalBaseline: string[] = []
+): WeakPositionFlag[] {
+  const alreadyFlagged = new Set(thinPositions);
+  const productionFlagged = new Set(positionsBelowHistoricalBaseline);
+  const flags: WeakPositionFlag[] = [];
+
+  for (const position of ["QB", "TE"] as const) {
+    const strength = positionStrength[position];
+    const flaggedByRank = isQbTeWeak(position, strength, alreadyFlagged.has(position));
+    const backedByProduction = productionFlagged.has(position);
+    if (flaggedByRank || backedByProduction) {
+      flags.push({
+        position,
+        reason: "weak",
+        flaggedByRank,
+        backedByProduction,
+        rosterCount: strength.rosterCount,
+      });
+    }
+  }
+
+  for (const position of ["RB", "WR"] as const) {
+    const strength = positionStrength[position];
+    const backedByProduction = productionFlagged.has(position);
+    const weak = isRbWrWeak(strength, alreadyFlagged.has(position));
+
+    // A production-only flag (rankings look fine, real scoring doesn't) is
+    // still a "weak" flag — flaggedByRank is what tells the two apart.
+    if (weak || backedByProduction) {
+      flags.push({
+        position,
+        reason: "weak",
+        flaggedByRank: weak,
+        backedByProduction,
+        rosterCount: strength.rosterCount,
+      });
+    }
+    if (isRbWrThinByCount(strength)) {
+      flags.push({
+        position,
+        reason: "thin",
+        flaggedByRank: true,
+        backedByProduction: false,
+        rosterCount: strength.rosterCount,
+      });
+    }
+  }
+
+  return flags;
 }
 
 export async function getTeamContexts(leagueId: string): Promise<{

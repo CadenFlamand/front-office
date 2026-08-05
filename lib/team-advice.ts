@@ -1,5 +1,10 @@
 import { NEAR_TERM_WINDOW_WEEKS } from "./sos";
-import type { PositionStrength } from "./team-context";
+import {
+  computeWeakPositionFlags,
+  type PositionStrength,
+  type StarterPosition,
+  type WeakPositionFlag,
+} from "./team-context";
 
 export type SeasonStage = "diagnostic" | "active_trading" | "waiver_mode";
 
@@ -143,52 +148,6 @@ function computeThinPositionActions(
   });
 }
 
-// Stage 1 uses fixed-cutoff checks (composite-ranked — see
-// lib/team-context.ts's computeCompositePositionRanks()), deliberately
-// different from computeThinPositionActions()'s league-format-relative bar
-// — early season is about "is your best guy actually good" (QB/TE) or "do
-// you have enough good/enough bodies" (RB/WR), not "can you fill your
-// exact starting lineup yet".
-const QB_WEAK_RANK_THRESHOLD = 7;
-const TE_WEAK_RANK_THRESHOLD = 5;
-// The "top 20" cutoff itself lives in lib/team-context.ts's
-// computePositionStrength() (TOP20_RANK), which is what top20Count counts.
-const RB_WR_MIN_TOP20_OPTIONS = 2;
-const RB_WR_THIN_ROSTER_COUNT_THRESHOLD = 3; // flags at 3 or fewer rostered
-
-const QB_TE_WEAK_RANK_THRESHOLD: Record<"QB" | "TE", number> = {
-  QB: QB_WEAK_RANK_THRESHOLD,
-  TE: TE_WEAK_RANK_THRESHOLD,
-};
-
-// QB/TE: streaming 1-2 deep is a normal, intentional strategy (this same
-// module recommends it in later stages), so roster count isn't a signal
-// here — only whether your best option is actually good.
-function isQbTeWeak(
-  position: "QB" | "TE",
-  strength: PositionStrength,
-  alreadyFlagged: boolean
-): boolean {
-  if (alreadyFlagged) return true;
-  return (
-    strength.bestPositionRank === null ||
-    strength.bestPositionRank > QB_TE_WEAK_RANK_THRESHOLD[position]
-  );
-}
-
-// RB/WR "weak" (ranking) and "thin" (roster count) are independent signals
-// now, not OR'd into one — a team can be one, the other, both, or neither.
-// "Weak" no longer has a "but you have one elite top-12 guy" escape hatch;
-// it's purely whether there are 2+ genuinely startable (top-20) options.
-function isRbWrWeak(strength: PositionStrength, alreadyFlagged: boolean): boolean {
-  if (alreadyFlagged) return true;
-  return strength.top20Count < RB_WR_MIN_TOP20_OPTIONS;
-}
-
-function isRbWrThinByCount(strength: PositionStrength): boolean {
-  return strength.rosterCount <= RB_WR_THIN_ROSTER_COUNT_THRESHOLD;
-}
-
 function qbTeMindfulNote(
   position: "QB" | "TE",
   flaggedByRank: boolean,
@@ -230,51 +189,38 @@ function rbWrThinNote(position: "RB" | "WR", rosterCount: number): string {
   return `${position} is thin — only ${rosterCount} rostered. ${RB_WR_ACTION_TAIL}`;
 }
 
-// Blends the rank-based check (Stage 1's own fixed cutoffs, OR'd with
-// computeThinPositions()'s league-format-relative "thinPositions" as a
-// safety net — a position that fails to fill its actual lineup slots
-// should obviously also read as weak here) with
-// lib/production-pace.ts's real-production check
-// (positionsBelowHistoricalBaseline). For QB/TE this is a single weak/not
-// signal. For RB/WR, "weak" (ranking) and "thin" (roster count) are
-// independent — a team can trigger either, both, or neither, and both
-// render as separate bullets when both fire. Production only ever blends
-// with "weak", never "thin".
+// Turns one structured flag into its display copy. The weak/thin evaluation
+// itself (and the thresholds behind it) lives in lib/team-context.ts's
+// computeWeakPositionFlags() — this module is only responsible for wording.
+function weakPositionNote(flag: WeakPositionFlag): string {
+  if (flag.reason === "thin") {
+    return rbWrThinNote(flag.position as "RB" | "WR", flag.rosterCount);
+  }
+  if (flag.position === "QB" || flag.position === "TE") {
+    return qbTeMindfulNote(flag.position, flag.flaggedByRank, flag.backedByProduction);
+  }
+  // RB/WR weak — flaggedByRank false means the rankings actually look fine
+  // and only real production disagrees, which reads differently.
+  return flag.flaggedByRank
+    ? rbWrWeakNote(flag.position as "RB" | "WR", flag.backedByProduction)
+    : rbWrProductionOnlyNote(flag.position as "RB" | "WR");
+}
+
+// Copy layer over lib/team-context.ts's computeWeakPositionFlags(), which
+// owns the actual blend of the composite-rank checks, computeThinPositions()'s
+// league-format-relative safety net, and lib/production-pace.ts's
+// real-production check. Signature and output are unchanged from when the
+// evaluation lived here.
 export function computeMindfulPositionFlags(
   thinPositions: string[],
-  positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>,
+  positionStrength: Record<StarterPosition, PositionStrength>,
   positionsBelowHistoricalBaseline: string[] = []
 ): MindfulPositionFlag[] {
-  const alreadyFlagged = new Set(thinPositions);
-  const productionFlagged = new Set(positionsBelowHistoricalBaseline);
-  const flags: MindfulPositionFlag[] = [];
-
-  for (const position of ["QB", "TE"] as const) {
-    const strength = positionStrength[position];
-    const flaggedByRank = isQbTeWeak(position, strength, alreadyFlagged.has(position));
-    const flaggedByProduction = productionFlagged.has(position);
-    if (flaggedByRank || flaggedByProduction) {
-      flags.push({ position, note: qbTeMindfulNote(position, flaggedByRank, flaggedByProduction) });
-    }
-  }
-
-  for (const position of ["RB", "WR"] as const) {
-    const strength = positionStrength[position];
-    const flaggedByProduction = productionFlagged.has(position);
-    const weak = isRbWrWeak(strength, alreadyFlagged.has(position));
-    const thin = isRbWrThinByCount(strength);
-
-    if (weak) {
-      flags.push({ position, note: rbWrWeakNote(position, flaggedByProduction) });
-    } else if (flaggedByProduction) {
-      flags.push({ position, note: rbWrProductionOnlyNote(position) });
-    }
-    if (thin) {
-      flags.push({ position, note: rbWrThinNote(position, strength.rosterCount) });
-    }
-  }
-
-  return flags;
+  return computeWeakPositionFlags(
+    thinPositions,
+    positionStrength,
+    positionsBelowHistoricalBaseline
+  ).map((flag) => ({ position: flag.position, note: weakPositionNote(flag) }));
 }
 
 function computeSellHighFlags(
