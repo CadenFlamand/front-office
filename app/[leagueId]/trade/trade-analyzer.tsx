@@ -548,25 +548,6 @@ function TradeColumn({
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {disabledMessage ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {disabledMessage}
-          </p>
-        ) : (
-          <>
-            {showRoster && (
-              <RosterGrid
-                players={players}
-                selectedIds={selectedIds}
-                sideIds={sideIds}
-                onAdd={onAdd}
-                onRemove={onRemove}
-              />
-            )}
-            <PlayerPicker players={players} excludeIds={selectedIds} onSelect={onAdd} />
-          </>
-        )}
-
         <div className="flex flex-col gap-2">
           {sideIds.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
@@ -609,6 +590,25 @@ function TradeColumn({
             );
           })}
         </div>
+
+        {disabledMessage ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {disabledMessage}
+          </p>
+        ) : (
+          <>
+            {showRoster && (
+              <RosterGrid
+                players={players}
+                selectedIds={selectedIds}
+                sideIds={sideIds}
+                onAdd={onAdd}
+                onRemove={onRemove}
+              />
+            )}
+            <PlayerPicker players={players} excludeIds={selectedIds} onSelect={onAdd} />
+          </>
+        )}
       </CardContent>
     </Card>
   );
