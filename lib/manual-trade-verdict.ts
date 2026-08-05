@@ -43,10 +43,10 @@ export function computeManualTradeVerdict({
 
   const valueCaption =
     diff > 0
-      ? `Market value: you gain +${diff.toLocaleString()} in trade value`
+      ? `Market value (FantasyCalc + FantasyPros combined): you gain +${diff.toLocaleString()} in trade value`
       : diff < 0
-        ? `Market value: you lose ${Math.abs(diff).toLocaleString()} in trade value`
-        : "Market value: dead even";
+        ? `Market value (FantasyCalc + FantasyPros combined): you lose ${Math.abs(diff).toLocaleString()} in trade value`
+        : "Market value (FantasyCalc + FantasyPros combined): dead even";
 
   const cautions: string[] = [];
 

@@ -428,7 +428,7 @@ export function OddsDiffLine({
       </span>{" "}
       <span className={`tabular-nums ${tone === "neutral" ? "text-muted-foreground" : toneClass}`}>
         ({deltaPct >= 0 ? "+" : ""}
-        {deltaPct.toFixed(1)} pts)
+        {deltaPct.toFixed(1)} percent)
       </span>
       {isPending && <span className="text-xs text-muted-foreground"> (updating…)</span>}
     </p>

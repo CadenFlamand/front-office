@@ -112,17 +112,17 @@ export function computeTradeVerdict({
 
   const headline =
     tone === "positive"
-      ? `Improves your playoff odds by ${oddsDeltaPts.toFixed(1)} points`
+      ? `Improves your playoff odds by ${oddsDeltaPts.toFixed(1)} percent`
       : tone === "negative"
-        ? `Hurts your playoff odds by ${Math.abs(oddsDeltaPts).toFixed(1)} points`
+        ? `Hurts your playoff odds by ${Math.abs(oddsDeltaPts).toFixed(1)} percent`
         : "No meaningful odds impact";
 
   const valueCaption =
     diff > 0
-      ? `Market value: you gain +${diff.toLocaleString()} in trade value`
+      ? `Market value (FantasyCalc + FantasyPros combined): you gain +${diff.toLocaleString()} in trade value`
       : diff < 0
-        ? `Market value: you lose ${Math.abs(diff).toLocaleString()} in trade value`
-        : "Market value: dead even";
+        ? `Market value (FantasyCalc + FantasyPros combined): you lose ${Math.abs(diff).toLocaleString()} in trade value`
+        : "Market value (FantasyCalc + FantasyPros combined): dead even";
 
   const cautions: string[] = [];
 
