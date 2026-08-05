@@ -87,9 +87,35 @@ export function getPlayoffBucket(playoffOdds: number): PlayoffBucket {
   return "Playoff Hopeful";
 }
 
+// Re-ranks the full valued-player pool by composite value (FantasyCalc +
+// FantasyPros blend, see lib/fantasycalc.ts's getPlayerValues()) within
+// each position, rather than using FantasyCalc's own raw positionRank
+// field — which last session's value-blending deliberately left untouched.
+// Both computeThinPositions() and computePositionStrength() read this now,
+// so "is this position startable" means the same thing everywhere in the
+// app instead of only being composite-aware for trade value specifically.
+export function computeCompositePositionRanks(
+  valuesById: Map<string, TradeablePlayer>
+): Map<string, number> {
+  const byPosition = new Map<string, TradeablePlayer[]>();
+  for (const player of valuesById.values()) {
+    const list = byPosition.get(player.position) ?? [];
+    list.push(player);
+    byPosition.set(player.position, list);
+  }
+
+  const ranks = new Map<string, number>();
+  for (const players of byPosition.values()) {
+    players.sort((a, b) => b.value - a.value);
+    players.forEach((player, index) => ranks.set(player.sleeperId, index + 1));
+  }
+  return ranks;
+}
+
 function computeThinPositions(
   rosterPlayerIds: string[],
   valuesById: Map<string, TradeablePlayer>,
+  compositeRanks: Map<string, number>,
   requiredStarters: Record<string, number>,
   totalRosters: number
 ): string[] {
@@ -97,8 +123,8 @@ function computeThinPositions(
   // enough to fill every team's dedicated slots at that position, where a
   // FLEX-type slot's requirement is split proportionally across the
   // positions it's eligible for (see countStarterSlots) rather than
-  // counted fully against each. A player who doesn't even show up in
-  // FantasyCalc's valued pool is, by definition, not startable.
+  // counted fully against each. A player who doesn't even show up in the
+  // composite valued pool is, by definition, not startable.
   const startableCounts: Record<string, number> = {};
   for (const position of STARTER_POSITIONS) startableCounts[position] = 0;
 
@@ -108,7 +134,8 @@ function computeThinPositions(
     const threshold = requiredStarters[player.position];
     if (threshold === undefined) continue;
     const leagueWideStartableRank = threshold * totalRosters;
-    if (player.positionRank <= leagueWideStartableRank) {
+    const rank = compositeRanks.get(playerId);
+    if (rank !== undefined && rank <= leagueWideStartableRank) {
       startableCounts[player.position] += 1;
     }
   }
@@ -121,13 +148,15 @@ function computeThinPositions(
 const TOP20_RANK = 20;
 
 // Raw positional depth/strength, independent of league starter requirements
-// — feeds the co-manager advice module's fixed-cutoff checks (top-8/top-12/
-// roster-count), which are deliberately different from computeThinPositions()'s
-// league-format-relative bar above. Only counts FantasyCalc-valued players,
-// same "no value = not real depth" philosophy as computeThinPositions().
+// — feeds the co-manager advice module's fixed-cutoff checks (top-7 QB/
+// top-5 TE/top-20 RB-WR/roster-count), which are deliberately different
+// from computeThinPositions()'s league-format-relative bar above. Only
+// counts composite-valued players, same "no value = not real depth"
+// philosophy as computeThinPositions().
 export function computePositionStrength(
   rosterPlayerIds: string[],
-  valuesById: Map<string, TradeablePlayer>
+  valuesById: Map<string, TradeablePlayer>,
+  compositeRanks: Map<string, number>
 ): Record<(typeof STARTER_POSITIONS)[number], PositionStrength> {
   const strength: Record<string, PositionStrength> = {};
   for (const position of STARTER_POSITIONS) {
@@ -137,16 +166,15 @@ export function computePositionStrength(
   for (const playerId of rosterPlayerIds) {
     const player = valuesById.get(playerId);
     if (!player || !STARTER_POSITION_SET.has(player.position)) continue;
+    const rank = compositeRanks.get(playerId);
+    if (rank === undefined) continue;
 
     const positionStrength = strength[player.position];
     positionStrength.rosterCount += 1;
-    if (
-      positionStrength.bestPositionRank === null ||
-      player.positionRank < positionStrength.bestPositionRank
-    ) {
-      positionStrength.bestPositionRank = player.positionRank;
+    if (positionStrength.bestPositionRank === null || rank < positionStrength.bestPositionRank) {
+      positionStrength.bestPositionRank = rank;
     }
-    if (player.positionRank <= TOP20_RANK) positionStrength.top20Count += 1;
+    if (rank <= TOP20_RANK) positionStrength.top20Count += 1;
   }
 
   return strength as Record<(typeof STARTER_POSITIONS)[number], PositionStrength>;
@@ -174,6 +202,7 @@ export async function getTeamContexts(leagueId: string): Promise<{
 
   const usersById = new Map(users.map((user) => [user.user_id, user]));
   const valuesById = new Map(values.map((player) => [player.sleeperId, player]));
+  const compositeRanks = computeCompositePositionRanks(valuesById);
   const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));
   const requiredStarters = countStarterSlots(league.roster_positions);
 
@@ -192,10 +221,11 @@ export async function getTeamContexts(leagueId: string): Promise<{
       thinPositions: computeThinPositions(
         roster.players ?? [],
         valuesById,
+        compositeRanks,
         requiredStarters,
         league.total_rosters
       ),
-      positionStrength: computePositionStrength(rosterPlayerIds, valuesById),
+      positionStrength: computePositionStrength(rosterPlayerIds, valuesById, compositeRanks),
       rosterPlayerIds,
     };
   });

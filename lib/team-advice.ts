@@ -143,48 +143,58 @@ function computeThinPositionActions(
   });
 }
 
-// Stage 1 uses fixed-cutoff checks, deliberately different from
-// computeThinPositionActions()'s league-format-relative bar — early season
-// is about "is your best guy actually good" (QB/TE) or "do you have enough
-// bodies" (RB/WR), not "can you fill your exact starting lineup yet".
-const QB_TE_TOP_RANK_THRESHOLD = 8;
-const RB_WR_TOP_STARTER_RANK = 12;
+// Stage 1 uses fixed-cutoff checks (composite-ranked — see
+// lib/team-context.ts's computeCompositePositionRanks()), deliberately
+// different from computeThinPositionActions()'s league-format-relative bar
+// — early season is about "is your best guy actually good" (QB/TE) or "do
+// you have enough good/enough bodies" (RB/WR), not "can you fill your
+// exact starting lineup yet".
+const QB_WEAK_RANK_THRESHOLD = 7;
+const TE_WEAK_RANK_THRESHOLD = 5;
 // The "top 20" cutoff itself lives in lib/team-context.ts's
 // computePositionStrength() (TOP20_RANK), which is what top20Count counts.
-const RB_WR_MIN_BACKUP_OPTIONS = 2;
-const RB_WR_LOW_ROSTER_COUNT_THRESHOLD = 5; // flags at 4 or fewer rostered
+const RB_WR_MIN_TOP20_OPTIONS = 2;
+const RB_WR_THIN_ROSTER_COUNT_THRESHOLD = 3; // flags at 3 or fewer rostered
+
+const QB_TE_WEAK_RANK_THRESHOLD: Record<"QB" | "TE", number> = {
+  QB: QB_WEAK_RANK_THRESHOLD,
+  TE: TE_WEAK_RANK_THRESHOLD,
+};
 
 // QB/TE: streaming 1-2 deep is a normal, intentional strategy (this same
 // module recommends it in later stages), so roster count isn't a signal
 // here — only whether your best option is actually good.
-function isQbTeWeak(strength: PositionStrength, alreadyFlagged: boolean): boolean {
+function isQbTeWeak(
+  position: "QB" | "TE",
+  strength: PositionStrength,
+  alreadyFlagged: boolean
+): boolean {
   if (alreadyFlagged) return true;
   return (
-    strength.bestPositionRank === null || strength.bestPositionRank > QB_TE_TOP_RANK_THRESHOLD
+    strength.bestPositionRank === null ||
+    strength.bestPositionRank > QB_TE_WEAK_RANK_THRESHOLD[position]
   );
 }
 
-// RB/WR: streaming isn't viable, so both "no real difference-maker" and
-// "not enough bodies" are worth flagging.
-function isRbWrThin(strength: PositionStrength, alreadyFlagged: boolean): boolean {
+// RB/WR "weak" (ranking) and "thin" (roster count) are independent signals
+// now, not OR'd into one — a team can be one, the other, both, or neither.
+// "Weak" no longer has a "but you have one elite top-12 guy" escape hatch;
+// it's purely whether there are 2+ genuinely startable (top-20) options.
+function isRbWrWeak(strength: PositionStrength, alreadyFlagged: boolean): boolean {
   if (alreadyFlagged) return true;
-  const hasEliteOption =
-    strength.bestPositionRank !== null && strength.bestPositionRank <= RB_WR_TOP_STARTER_RANK;
-  const hasEnoughGoodOptions = strength.top20Count >= RB_WR_MIN_BACKUP_OPTIONS;
-  const rankThin = !hasEliteOption && !hasEnoughGoodOptions;
-  const countThin = strength.rosterCount < RB_WR_LOW_ROSTER_COUNT_THRESHOLD;
-  return rankThin || countThin;
+  return strength.top20Count < RB_WR_MIN_TOP20_OPTIONS;
 }
 
-function mindfulNote(
-  position: "QB" | "RB" | "WR" | "TE",
+function isRbWrThinByCount(strength: PositionStrength): boolean {
+  return strength.rosterCount <= RB_WR_THIN_ROSTER_COUNT_THRESHOLD;
+}
+
+function qbTeMindfulNote(
+  position: "QB" | "TE",
   flaggedByRank: boolean,
   flaggedByProduction: boolean
 ): string {
-  const base =
-    position === "QB" || position === "TE"
-      ? `${position} is weak — worth considering streaming the position early rather than locking into one starter, since that's a normal strategy at ${position}.`
-      : `${position} is thin — consider trading depth from elsewhere to shore it up, or keep an eye on the waiver wire for opportunity.`;
+  const base = `${position} is weak — worth considering streaming the position early rather than locking into one starter, since that's a normal strategy at ${position}.`;
 
   if (flaggedByRank && flaggedByProduction) {
     return `${base} Real scoring data backs this up too — nobody here is producing like a startable option based on recent-season history.`;
@@ -195,16 +205,41 @@ function mindfulNote(
   return base;
 }
 
-// Blends two independent signals per position: computeThinPositions()'s
-// market-value-based rank check (thinPositions — unchanged, still the only
-// thing that decides whether a position gets flagged at all when the two
-// signals disagree in the "rank says thin, production doesn't" direction —
-// that direction is deliberately not checked here) and
+const RB_WR_ACTION_TAIL =
+  "Consider trading depth from elsewhere to shore it up, or keep an eye on the waiver wire for opportunity.";
+
+// Only the ranking-based "weak" signal blends with real-production data —
+// "thin" is a pure roster-count fact that recent scoring history doesn't
+// change one way or the other.
+function rbWrWeakNote(
+  position: "RB" | "WR",
+  flaggedByProduction: boolean
+): string {
+  const base = `${position} is weak — you don't have two top-20 options at the position. ${RB_WR_ACTION_TAIL}`;
+  if (flaggedByProduction) {
+    return `${base} Real scoring data backs this up too — nobody here is producing like a startable option based on recent-season history.`;
+  }
+  return base;
+}
+
+function rbWrProductionOnlyNote(position: "RB" | "WR"): string {
+  return `${position} looks fine by trade value, but isn't scoring like a startable option based on recent-season history — worth keeping an eye on before assuming this position is settled.`;
+}
+
+function rbWrThinNote(position: "RB" | "WR", rosterCount: number): string {
+  return `${position} is thin — only ${rosterCount} rostered. ${RB_WR_ACTION_TAIL}`;
+}
+
+// Blends the rank-based check (Stage 1's own fixed cutoffs, OR'd with
+// computeThinPositions()'s league-format-relative "thinPositions" as a
+// safety net — a position that fails to fill its actual lineup slots
+// should obviously also read as weak here) with
 // lib/production-pace.ts's real-production check
-// (positionsBelowHistoricalBaseline). A position can be flagged by either,
-// both, or neither; when both agree the note is reinforced, and when only
-// production disagrees (looks fine by value, isn't producing) that's
-// surfaced as new information the rank-only system would have missed.
+// (positionsBelowHistoricalBaseline). For QB/TE this is a single weak/not
+// signal. For RB/WR, "weak" (ranking) and "thin" (roster count) are
+// independent — a team can trigger either, both, or neither, and both
+// render as separate bullets when both fire. Production only ever blends
+// with "weak", never "thin".
 export function computeMindfulPositionFlags(
   thinPositions: string[],
   positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>,
@@ -214,15 +249,28 @@ export function computeMindfulPositionFlags(
   const productionFlagged = new Set(positionsBelowHistoricalBaseline);
   const flags: MindfulPositionFlag[] = [];
 
-  for (const position of ["QB", "RB", "WR", "TE"] as const) {
+  for (const position of ["QB", "TE"] as const) {
     const strength = positionStrength[position];
-    const flaggedByRank =
-      position === "QB" || position === "TE"
-        ? isQbTeWeak(strength, alreadyFlagged.has(position))
-        : isRbWrThin(strength, alreadyFlagged.has(position));
+    const flaggedByRank = isQbTeWeak(position, strength, alreadyFlagged.has(position));
     const flaggedByProduction = productionFlagged.has(position);
     if (flaggedByRank || flaggedByProduction) {
-      flags.push({ position, note: mindfulNote(position, flaggedByRank, flaggedByProduction) });
+      flags.push({ position, note: qbTeMindfulNote(position, flaggedByRank, flaggedByProduction) });
+    }
+  }
+
+  for (const position of ["RB", "WR"] as const) {
+    const strength = positionStrength[position];
+    const flaggedByProduction = productionFlagged.has(position);
+    const weak = isRbWrWeak(strength, alreadyFlagged.has(position));
+    const thin = isRbWrThinByCount(strength);
+
+    if (weak) {
+      flags.push({ position, note: rbWrWeakNote(position, flaggedByProduction) });
+    } else if (flaggedByProduction) {
+      flags.push({ position, note: rbWrProductionOnlyNote(position) });
+    }
+    if (thin) {
+      flags.push({ position, note: rbWrThinNote(position, strength.rosterCount) });
     }
   }
 

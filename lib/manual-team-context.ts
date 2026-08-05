@@ -5,7 +5,11 @@ import {
   formatManualRecord,
   getManualBucket,
 } from "./manual-league";
-import { computePositionStrength, type TeamContext } from "./team-context";
+import {
+  computeCompositePositionRanks,
+  computePositionStrength,
+  type TeamContext,
+} from "./team-context";
 
 // Manual leagues have no real roster_positions to read a starting format
 // from — assumes a standard single-QB format purely to pick FantasyCalc's
@@ -57,6 +61,7 @@ export async function getManualTeamContexts(leagueId: string): Promise<{
   ]);
 
   const valuesById = new Map(values.map((player) => [player.sleeperId, player]));
+  const compositeRanks = computeCompositePositionRanks(valuesById);
   const rankByTeamId = computeManualStandingsRanks(manualTeams);
 
   const teams: TeamContext[] = manualTeams.map((team) => {
@@ -70,7 +75,7 @@ export async function getManualTeamContexts(leagueId: string): Promise<{
       record: formatManualRecord(team),
       bucket: getManualBucket(rankByTeamId.get(team.id) ?? manualTeams.length, manualTeams.length),
       thinPositions: [],
-      positionStrength: computePositionStrength(rosterPlayerIds, valuesById),
+      positionStrength: computePositionStrength(rosterPlayerIds, valuesById, compositeRanks),
       rosterPlayerIds,
     };
   });
