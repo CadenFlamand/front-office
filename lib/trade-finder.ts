@@ -6,7 +6,6 @@ import {
 } from "./production-pace";
 import {
   computePositionStrength,
-  computeThinPositions,
   computeWeakPositionFlags,
   type StarterPosition,
   type WeakPositionFlag,
@@ -127,6 +126,36 @@ const MAX_LINEUP_POINTS_LOSS = -1;
 // win-win. First-pass fraction, uncalibrated.
 const MAX_VALUE_GAP_FRACTION = 0.25;
 
+/**
+ * The finder's need signal deliberately does NOT feed computeThinPositions()'s
+ * league-format-relative flags into computeWeakPositionFlags() as the
+ * safety-net OR that co-manager advice uses. That OR is left exactly as it is
+ * for advice — this only changes what the finder treats as a hole.
+ *
+ * The reason is that the league-format bar compares a startable count against
+ * a *fractional* starter requirement produced by splitting FLEX slots across
+ * RB/WR/TE. In a 2-RB + 2-FLEX league RB requires 2.67, so a roster needs
+ * three top-32 RBs to avoid reading thin — and no roster can hold 2.67
+ * players, so two elite RBs always flags. On the tracked league that fired
+ * for 8 of 12 teams at RB and 8 of 12 at TE, overriding this morning's
+ * fixed-cutoff thresholds in exactly the cases where the two disagree: a
+ * roster with McCaffrey (RB3) and Barkley (RB10) read "RB weak" despite
+ * clearing the two-top-20-options bar, and the finder went looking to trade
+ * A.J. Brown to fix it.
+ *
+ * A signal that fires for two thirds of the league carries almost no
+ * information for a *matching* engine, whose whole job is telling rosters
+ * apart. So need here is the composite-ranked fixed cutoffs alone (QB top-7,
+ * TE top-5, RB/WR two top-20 options, RB/WR 3-or-fewer rostered), blended
+ * with real production pace.
+ *
+ * Surplus below still uses the league-format bar, and that asymmetry is
+ * intentional: "can I afford to lose one here without opening a lineup hole"
+ * genuinely is a question about filling your actual starting slots, which is
+ * what that bar measures.
+ */
+const NO_LEAGUE_FORMAT_FLAGS: string[] = [];
+
 const DEFAULT_LIMIT = 12;
 const DEFAULT_MAX_PER_PARTNER = 3;
 const MAX_PACKAGE_SIZE = 2;
@@ -156,13 +185,6 @@ export function computeRosterFit(
   totalRosters: number,
   leaguePace: LeagueProductionPace
 ): RosterFit {
-  const thinPositions = computeThinPositions(
-    team.allPlayerIds,
-    playersById,
-    compositeRanks,
-    requiredStarters,
-    totalRosters
-  );
   const positionStrength = computePositionStrength(
     team.valuedPlayerIds,
     playersById,
@@ -173,7 +195,7 @@ export function computeRosterFit(
     team.valuedPlayerIds
   );
 
-  const needs = computeWeakPositionFlags(thinPositions, positionStrength, belowBaseline);
+  const needs = computeWeakPositionFlags(NO_LEAGUE_FORMAT_FLAGS, positionStrength, belowBaseline);
   const needPositions = new Set(needs.map((flag) => flag.position));
 
   const surplusPositions = new Set<string>();
@@ -214,15 +236,7 @@ function resolvedFlags(
 
   const given = new Set(giveIds);
   const nextValued = [...team.valuedPlayerIds.filter((id) => !given.has(id)), ...receiveIds];
-  const nextAll = [...team.allPlayerIds.filter((id) => !given.has(id)), ...receiveIds];
 
-  const thinPositions = computeThinPositions(
-    nextAll,
-    input.playersById,
-    input.compositeRanks,
-    input.requiredStarters,
-    input.totalRosters
-  );
   const positionStrength = computePositionStrength(
     nextValued,
     input.playersById,
@@ -230,8 +244,11 @@ function resolvedFlags(
   );
   const belowBaseline = computePositionsBelowBaselineForRoster(input.leaguePace, nextValued);
 
+  // Same NO_LEAGUE_FORMAT_FLAGS basis as computeRosterFit above — the
+  // before and after reads have to be the same evaluation or a "cleared"
+  // flag could just be an artifact of measuring the two differently.
   const after = new Set(
-    computeWeakPositionFlags(thinPositions, positionStrength, belowBaseline).map(
+    computeWeakPositionFlags(NO_LEAGUE_FORMAT_FLAGS, positionStrength, belowBaseline).map(
       (flag) => `${flag.position}:${flag.reason}`
     )
   );

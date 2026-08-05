@@ -28,10 +28,20 @@ export interface TradeOddsDiff {
  * a starting spot, and a traded-away starter's slot gets backfilled from
  * the bench the way a real manager would fill it.
  *
- * Because both sides are optimized, `before` here is the team's best-lineup
- * odds, which can read slightly higher than the odds shown on the dashboard
- * — those reflect the manager's actual current starters. The two agree
- * whenever the current lineup is already the highest-projecting one.
+ * TODO (revisit once the season starts, Sept 2026): `before` here is the
+ * team's *best-lineup* odds, while the dashboard and /odds pages show
+ * getPlayoffOdds() against the manager's *actual* current starters. The two
+ * disagree by however much a lineup is off optimal — on the tracked league
+ * in the preseason that's 87.5% vs 94.2%, because rosters were freshly
+ * drafted and starters were never set by hand.
+ *
+ * This is deliberate and not a bug: the comparison above has to apply one
+ * lineup policy to both sides or it credits the trade for merely re-setting
+ * a lineup. But it does mean two surfaces show different "current odds" for
+ * the same team. The gap should shrink once managers actually set lineups
+ * weekly, so no explainer/tooltip is being built for it now — decide in
+ * September, with real usage, whether it needs surfacing in the UI or
+ * whether the dashboard should move to best-lineup odds too.
  */
 export async function getOddsForTrade(
   leagueId: string,

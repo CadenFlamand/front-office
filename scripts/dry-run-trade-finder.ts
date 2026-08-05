@@ -135,7 +135,12 @@ async function main() {
     console.log(`    surplus: ${surplus}`);
   }
 
-  const me = teams.find((t) => t.teamName.toLowerCase().includes(teamQuery.toLowerCase()));
+  // Most teams in a partly-unclaimed league share the name "Unassigned Team",
+  // so a numeric argument selects by roster ID instead.
+  const asRosterId = Number(teamQuery);
+  const me = Number.isInteger(asRosterId)
+    ? teams.find((t) => t.rosterId === asRosterId)
+    : teams.find((t) => t.teamName.toLowerCase().includes(teamQuery.toLowerCase()));
   if (!me) {
     console.error(`\nNo team matching "${teamQuery}".`);
     process.exit(1);
