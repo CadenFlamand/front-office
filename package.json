@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "ingest:baselines": "tsx --env-file=.env.local scripts/ingest-position-baselines.ts",
-    "ingest:fantasypros": "tsx --env-file=.env.local scripts/ingest-fantasypros-values.ts"
+    "ingest:fantasypros": "tsx --env-file=.env.local scripts/ingest-fantasypros-values.ts",
+    "dryrun:trade-finder": "tsx --env-file=.env.local scripts/dry-run-trade-finder.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

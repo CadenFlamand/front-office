@@ -114,7 +114,9 @@ export function computeCompositePositionRanks(
   return ranks;
 }
 
-function computeThinPositions(
+// Exported so the trade finder can recompute it against a hypothetical
+// post-trade roster, rather than reusing a team's pre-trade value.
+export function computeThinPositions(
   rosterPlayerIds: string[],
   valuesById: Map<string, TradeablePlayer>,
   compositeRanks: Map<string, number>,
