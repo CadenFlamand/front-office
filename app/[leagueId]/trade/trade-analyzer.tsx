@@ -1,7 +1,7 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Loader2, Search, Share2, X } from "lucide-react";
+import { Check, Loader2, Search, Share2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -555,7 +555,13 @@ function TradeColumn({
         ) : (
           <>
             {showRoster && (
-              <RosterGrid players={players} excludeIds={selectedIds} onSelect={onAdd} />
+              <RosterGrid
+                players={players}
+                selectedIds={selectedIds}
+                sideIds={sideIds}
+                onAdd={onAdd}
+                onRemove={onRemove}
+              />
             )}
             <PlayerPicker players={players} excludeIds={selectedIds} onSelect={onAdd} />
           </>
@@ -610,22 +616,45 @@ function TradeColumn({
 
 function RosterGrid({
   players,
-  excludeIds,
-  onSelect,
+  selectedIds,
+  sideIds,
+  onAdd,
+  onRemove,
 }: {
   players: TradeablePlayer[];
-  excludeIds: Set<string>;
-  onSelect: (sleeperId: string) => void;
+  // Cross-side set (give + receive) — a player already picked for the
+  // *other* side stays hidden here, same as before, to avoid the
+  // nonsensical "trade yourself your own player" case.
+  selectedIds: Set<string>;
+  // This side's own picks, in selection order — drives both the top-of-
+  // list sort and the highlighted/selected look, so a click's effect is
+  // visible immediately without scrolling to a separate section.
+  sideIds: string[];
+  onAdd: (sleeperId: string) => void;
+  onRemove: (sleeperId: string) => void;
 }) {
-  const available = useMemo(
-    () =>
-      players
-        .filter((player) => !excludeIds.has(player.sleeperId))
-        .sort((a, b) => b.value - a.value),
-    [players, excludeIds]
-  );
+  const sideIdSet = useMemo(() => new Set(sideIds), [sideIds]);
 
-  if (available.length === 0) {
+  const ordered = useMemo(() => {
+    const eligible = players.filter(
+      (player) => sideIdSet.has(player.sleeperId) || !selectedIds.has(player.sleeperId)
+    );
+
+    // Most-recently-selected first, so whichever player was just clicked
+    // jumps to the very top of the list instead of the user having to
+    // scroll to confirm the click registered.
+    const selected = [...sideIds]
+      .reverse()
+      .map((id) => eligible.find((player) => player.sleeperId === id))
+      .filter((player): player is TradeablePlayer => player !== undefined);
+    const unselected = eligible
+      .filter((player) => !sideIdSet.has(player.sleeperId))
+      .sort((a, b) => b.value - a.value);
+
+    return [...selected, ...unselected];
+  }, [players, sideIds, sideIdSet, selectedIds]);
+
+  if (ordered.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         All your tradeable players are already in this trade.
@@ -639,22 +668,32 @@ function RosterGrid({
         Your Roster
       </p>
       <div className="flex flex-col gap-2">
-        {available.map((player) => (
-          <button
-            className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
-            key={player.sleeperId}
-            onClick={() => onSelect(player.sleeperId)}
-            type="button"
-          >
-            <span className="min-w-0 flex-1 truncate">
-              {player.name}{" "}
-              <span className="text-xs text-muted-foreground">
-                {player.position} · {player.team ?? "FA"}
+        {ordered.map((player) => {
+          const isSelected = sideIdSet.has(player.sleeperId);
+          return (
+            <button
+              className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                isSelected
+                  ? "border-primary/50 bg-primary/5"
+                  : "hover:bg-muted"
+              }`}
+              key={player.sleeperId}
+              onClick={() =>
+                isSelected ? onRemove(player.sleeperId) : onAdd(player.sleeperId)
+              }
+              type="button"
+            >
+              <span className="min-w-0 flex-1 truncate">
+                {player.name}{" "}
+                <span className="text-xs text-muted-foreground">
+                  {player.position} · {player.team ?? "FA"}
+                </span>
               </span>
-            </span>
-            <Badge variant="outline">{player.value.toLocaleString()}</Badge>
-          </button>
-        ))}
+              {isSelected && <Check aria-hidden="true" className="size-4 shrink-0 text-primary" />}
+              <Badge variant="outline">{player.value.toLocaleString()}</Badge>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
