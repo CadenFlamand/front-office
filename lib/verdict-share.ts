@@ -5,7 +5,8 @@ import type { TradeVerdict, VerdictTone } from "./trade-verdict";
 
 export interface TradeSidePlayer {
   sleeperId: string;
-  // FantasyCalc value, frozen at share time — see VerdictPayload's comment.
+  // Composite FantasyCalc+FantasyPros value (lib/fantasycalc.ts's
+  // getPlayerValues()), frozen at share time — see VerdictPayload's comment.
   value: number;
 }
 

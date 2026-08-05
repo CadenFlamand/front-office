@@ -162,7 +162,7 @@ export default async function VerdictPage({
           <p className="text-sm font-medium text-muted-foreground">Front Office</p>
           <h1 className="text-3xl font-semibold tracking-tight">Trade Verdict</h1>
           <p className="max-w-2xl text-zinc-600 dark:text-zinc-400">
-            A shared trade from the FantasyCalc-powered trade analyzer.
+            A shared trade from the FantasyCalc + FantasyPros-powered trade analyzer.
           </p>
         </div>
 

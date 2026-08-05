@@ -10,7 +10,7 @@ export default function Loading() {
           <p className="text-sm font-medium text-muted-foreground">Front Office</p>
           <h1 className="text-3xl font-semibold tracking-tight">Trade Analyzer</h1>
           <p className="max-w-2xl text-zinc-600 dark:text-zinc-400">
-            Add players to each side to compare trade value, powered by FantasyCalc.
+            Add players to each side to compare trade value, powered by FantasyCalc + FantasyPros.
           </p>
         </div>
 
