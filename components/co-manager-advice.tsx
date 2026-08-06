@@ -6,13 +6,13 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getManualCoManagerAdvice } from "@/lib/manual-advice-action";
 import { isManualLeagueId } from "@/lib/manual-league";
+import type { AdviceSignals } from "@/lib/team-advice";
 import {
   type AdviceBullet,
   type AdviceBulletCategory,
-  type AdviceSignals,
   formatAdviceCompact,
   formatAdviceExpanded,
-} from "@/lib/team-advice";
+} from "@/lib/team-advice-format";
 import { getCoManagerAdvice } from "@/lib/team-advice-action";
 
 type Format = "compact" | "expanded";
