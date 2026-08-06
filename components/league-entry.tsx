@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { validateLeagueId } from "@/lib/validate-league";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
+import { addSleeperLeague } from "@/lib/add-league-action";
 
 const LAST_LEAGUE_STORAGE_KEY = "front-office:last-league";
 
@@ -45,6 +46,7 @@ export function LeagueEntry() {
   const router = useRouter();
   const [leagueId, setLeagueId] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const storedRaw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
@@ -65,10 +67,12 @@ export function LeagueEntry() {
       return;
     }
     setError(null);
+    setQuotaExceeded(false);
     startTransition(async () => {
-      const result = await validateLeagueId(trimmed);
+      const result = await addSleeperLeague(trimmed);
       if (!result.ok || !result.leagueName) {
         setError(result.error ?? "Couldn't find that league.");
+        setQuotaExceeded(result.quotaExceeded ?? false);
         return;
       }
       goToLeague(trimmed, result.leagueName);
@@ -122,12 +126,16 @@ export function LeagueEntry() {
           />
         </label>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && !quotaExceeded && (
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        )}
 
         <Button disabled={isPending} type="submit">
           {isPending ? "Checking…" : "Continue"}
         </Button>
       </form>
+
+      {quotaExceeded && <UpgradePrompt />}
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have a Sleeper league?{" "}

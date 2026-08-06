@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { ScrollableNav } from "@/components/scrollable-nav";
+import { SignOutButton } from "@/components/sign-out-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TradeTabNudge } from "@/components/trade-tab-nudge";
+import { getCurrentUser } from "@/lib/auth/dal";
 
 const NAV_LINKS = [
   { label: "Team", segment: "" },
@@ -22,6 +24,10 @@ export default async function LeagueLayout({
   params: Promise<{ leagueId: string }>;
 }) {
   const { leagueId } = await params;
+  // Sleeper league pages are viewable signed-out, so this is presentational
+  // only — it decides whether to offer a sign-out affordance, never whether
+  // the page renders.
+  const user = await getCurrentUser();
 
   return (
     <div className="flex flex-1 flex-col">
@@ -42,7 +48,8 @@ export default async function LeagueLayout({
             href: `/${leagueId}${link.segment}`,
           }))}
         />
-        <div className="ml-2 flex shrink-0 items-center">
+        <div className="ml-2 flex shrink-0 items-center gap-3">
+          {user && <SignOutButton />}
           <ThemeToggle />
         </div>
       </nav>

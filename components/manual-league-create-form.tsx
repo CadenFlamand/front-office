@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { createManualLeague } from "@/lib/db/manual-leagues";
 
 const MAX_LEAGUE_NAME_LENGTH = 100;
@@ -12,6 +13,7 @@ export function ManualLeagueCreateForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function submit() {
@@ -25,9 +27,18 @@ export function ManualLeagueCreateForm() {
       return;
     }
     setError(null);
+    setQuotaExceeded(false);
     startTransition(async () => {
-      const league = await createManualLeague(trimmed);
-      router.push(`/${league.id}/manage`);
+      const result = await createManualLeague(trimmed);
+      if (!result.ok) {
+        if (result.error === "quota-exceeded") {
+          setQuotaExceeded(true);
+          return;
+        }
+        setError("You need to be signed in to create a league.");
+        return;
+      }
+      router.push(`/${result.league.id}/manage`);
     });
   }
 
@@ -57,6 +68,8 @@ export function ManualLeagueCreateForm() {
       <Button disabled={isPending} type="submit">
         {isPending ? "Creating…" : "Create league"}
       </Button>
+
+      {quotaExceeded && <UpgradePrompt context="manual" />}
     </form>
   );
 }

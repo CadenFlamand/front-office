@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { TeamDashboard, type TeamSummary } from "@/components/team-dashboard";
 import { Separator } from "@/components/ui/separator";
+import { requireManualLeagueAccess } from "@/lib/auth/dal";
 import { getManualLeague, getManualTeams } from "@/lib/db/manual-leagues";
 import { isNotFound } from "@/lib/http";
 import {
@@ -31,6 +32,8 @@ export default async function TeamPickerPage({
   const { leagueId } = await params;
 
   if (isManualLeagueId(leagueId)) {
+    // Owner-only; Sleeper leagues below stay publicly viewable.
+    await requireManualLeagueAccess(leagueId);
     const league = await getManualLeague(leagueId);
     if (!league) notFound();
 

@@ -1,6 +1,9 @@
 import { ManualLeagueCreateForm } from "@/components/manual-league-create-form";
+import { requireUser } from "@/lib/auth/dal";
 
-export default function StartManualPage() {
+export default async function StartManualPage() {
+  await requireUser();
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-md flex-col gap-8">

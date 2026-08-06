@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { getPlayers } from "@/app/[leagueId]/players/data";
 import { ManualLeagueManager } from "@/components/manual-league-manager";
+import { requireManualLeagueAccess } from "@/lib/auth/dal";
 import { getManualLeague, getManualRosters, getManualTeams } from "@/lib/db/manual-leagues";
 import { isManualLeagueId } from "@/lib/manual-league";
 
@@ -13,6 +14,10 @@ export default async function ManageLeaguePage({
   const { leagueId } = await params;
   // Manual-only route — a Sleeper league has nothing to manage here.
   if (!isManualLeagueId(leagueId)) notFound();
+  // Manual leagues hold private, user-entered data — owner-only. Checked here
+  // so an unauthorized visitor gets a clean redirect/404 rather than the
+  // error boundary that the data-layer guards would otherwise surface.
+  await requireManualLeagueAccess(leagueId);
 
   const league = await getManualLeague(leagueId);
   if (!league) notFound();

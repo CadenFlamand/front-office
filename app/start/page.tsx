@@ -1,6 +1,12 @@
 import { LeagueEntry } from "@/components/league-entry";
+import { requireUser } from "@/lib/auth/dal";
 
-export default function Home() {
+export default async function Home() {
+  // League entry now attaches the league to an account, so it needs one.
+  // Sleeper league *pages* stay publicly viewable — only this entry flow and
+  // manual leagues require signing in.
+  await requireUser();
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-md flex-col gap-8">

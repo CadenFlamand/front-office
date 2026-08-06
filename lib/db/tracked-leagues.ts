@@ -5,8 +5,11 @@ if (!process.env.DATABASE_URL) {
 }
 const sql = neon(process.env.DATABASE_URL);
 
-// Called fire-and-forget from validateLeagueId() on every successful
-// validation — never on the critical path of the user-facing response.
+// Called fire-and-forget from lib/add-league-action.ts when a user attaches a
+// league — never on the critical path of the user-facing response. This table
+// stays a global registry of leagues to snapshot, independent of which
+// accounts hold them (that is user_leagues); a league is snapshotted if any
+// user has added it.
 export async function trackLeagueSeen(leagueId: string): Promise<void> {
   await sql`
     INSERT INTO tracked_leagues (league_id)
