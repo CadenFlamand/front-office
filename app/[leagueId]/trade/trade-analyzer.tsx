@@ -1,6 +1,14 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { Check, Loader2, Search, Share2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -55,15 +63,43 @@ export function TradeAnalyzer({
   );
 
   // "You Give" is scoped to the selected team's actual roster (already
-  // fetched from Sleeper), not the full league player pool — "You Receive"
-  // stays a full-league search since you don't necessarily know the other
-  // team's roster upfront.
+  // fetched from Sleeper), not the full league player pool.
   const rosterPlayers = useMemo(() => {
     if (!selectedTeam) return [];
     return selectedTeam.rosterPlayerIds
       .map((id) => playersById.get(id))
       .filter((player): player is TradeablePlayer => player !== undefined);
   }, [selectedTeam, playersById]);
+
+  // "You Receive" is session-only, same as the team picker above — a trade
+  // partner isn't a durable fact about the user the way their own team is.
+  const [partnerRosterId, setPartnerRosterId] = useState<number | null>(null);
+  // Guards the rare case where "my team" changes (via the session picker)
+  // to the roster currently set as the partner — can't trade with yourself.
+  const partnerTeam =
+    partnerRosterId !== null && partnerRosterId !== selectedRosterId
+      ? teams.find((team) => team.rosterId === partnerRosterId)
+      : undefined;
+
+  const partnerRosterPlayers = useMemo(() => {
+    if (!partnerTeam) return [];
+    return partnerTeam.rosterPlayerIds
+      .map((id) => playersById.get(id))
+      .filter((player): player is TradeablePlayer => player !== undefined);
+  }, [partnerTeam, playersById]);
+
+  // A receive pick made against one partner's roster means nothing once the
+  // partner changes, so switching (rather than loading a whole suggestion,
+  // which sets its own consistent receiveIds below) starts that side over.
+  function selectPartner(rosterId: number) {
+    setPartnerRosterId(rosterId);
+    setReceiveIds([]);
+  }
+
+  function changePartner() {
+    setPartnerRosterId(null);
+    setReceiveIds([]);
+  }
 
   function addPlayer(side: Side, sleeperId: string) {
     if (side === "give") setGiveIds((ids) => [...ids, sleeperId]);
@@ -75,10 +111,16 @@ export function TradeAnalyzer({
     else setReceiveIds((ids) => ids.filter((id) => id !== sleeperId));
   }
 
-  // Replaces both sides outright rather than appending — a suggestion is a
-  // complete trade, so merging it into whatever was already staged would
-  // produce something the finder never actually evaluated.
-  function loadTrade(nextGiveIds: string[], nextReceiveIds: string[]) {
+  // Replaces the partner and both sides outright rather than appending — a
+  // suggestion is a complete trade (including who it's with), so merging it
+  // into whatever was already staged would produce something the finder
+  // never actually evaluated.
+  function loadTrade(
+    nextPartnerRosterId: number,
+    nextGiveIds: string[],
+    nextReceiveIds: string[]
+  ) {
+    setPartnerRosterId(nextPartnerRosterId);
     setGiveIds(nextGiveIds);
     setReceiveIds(nextReceiveIds);
   }
@@ -306,6 +348,7 @@ export function TradeAnalyzer({
           onAdd={(id) => addPlayer("give", id)}
           onRemove={(id) => removePlayer("give", id)}
           showRoster
+          rosterLabel="Your Roster"
           disabledMessage={
             !selectedTeam ? "Select your team above to see your roster." : undefined
           }
@@ -313,7 +356,7 @@ export function TradeAnalyzer({
         <TradeColumn
           title="You Receive"
           side="receive"
-          players={players}
+          players={partnerRosterPlayers}
           selectedIds={selectedIds}
           sideIds={receiveIds}
           playersById={playersById}
@@ -321,6 +364,21 @@ export function TradeAnalyzer({
           total={receiveTotal}
           onAdd={(id) => addPlayer("receive", id)}
           onRemove={(id) => removePlayer("receive", id)}
+          showRoster
+          rosterLabel="Their Roster"
+          rosterEmptyMessage="All of their tradeable players are already in this trade."
+          disabledMessage={
+            !partnerTeam ? "Select a partner team above to see their roster." : undefined
+          }
+          headerExtra={
+            <PartnerPicker
+              teams={teams}
+              excludeRosterId={selectedRosterId}
+              partnerTeam={partnerTeam}
+              onChange={changePartner}
+              onSelect={selectPartner}
+            />
+          }
         />
       </div>
     </div>
@@ -541,7 +599,10 @@ function TradeColumn({
   onAdd,
   onRemove,
   showRoster,
+  rosterLabel,
+  rosterEmptyMessage,
   disabledMessage,
+  headerExtra,
 }: {
   title: string;
   side: Side;
@@ -554,7 +615,13 @@ function TradeColumn({
   onAdd: (sleeperId: string) => void;
   onRemove: (sleeperId: string) => void;
   showRoster?: boolean;
+  rosterLabel?: string;
+  rosterEmptyMessage?: string;
   disabledMessage?: string;
+  // Rendered inside the card header below the title row, always visible
+  // regardless of disabledMessage — the receive side's partner picker needs
+  // to stay reachable even before a partner (and so a roster) exists.
+  headerExtra?: ReactNode;
 }) {
   return (
     <Card>
@@ -565,6 +632,7 @@ function TradeColumn({
             {total.toLocaleString()}
           </span>
         </div>
+        {headerExtra}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-col gap-2">
@@ -623,6 +691,8 @@ function TradeColumn({
                 sideIds={sideIds}
                 onAdd={onAdd}
                 onRemove={onRemove}
+                label={rosterLabel}
+                emptyMessage={rosterEmptyMessage}
               />
             )}
             <PlayerPicker players={players} excludeIds={selectedIds} onSelect={onAdd} />
@@ -633,12 +703,72 @@ function TradeColumn({
   );
 }
 
+// Lives in "You Receive"'s card header rather than beside the top-level
+// TeamHeader — a trade partner is specific to that one column, unlike "my
+// team" which the whole page (including the give side and the odds/verdict
+// calculation) depends on.
+function PartnerPicker({
+  teams,
+  excludeRosterId,
+  partnerTeam,
+  onSelect,
+  onChange,
+}: {
+  teams: TeamContext[];
+  excludeRosterId: number | null;
+  partnerTeam: TeamContext | undefined;
+  onSelect: (rosterId: number) => void;
+  onChange: () => void;
+}) {
+  if (partnerTeam) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-xs text-muted-foreground">
+          Trading with{" "}
+          <span className="font-medium text-foreground">{partnerTeam.teamName}</span>
+        </p>
+        <button
+          className="shrink-0 text-xs font-medium text-primary underline-offset-4 hover:underline"
+          onClick={onChange}
+          type="button"
+        >
+          Change
+        </button>
+      </div>
+    );
+  }
+
+  const options = teams.filter((team) => team.rosterId !== excludeRosterId);
+
+  return (
+    <select
+      aria-label="Choose a team to trade with"
+      className="h-9 w-full rounded-lg border bg-background px-3 text-xs outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      defaultValue=""
+      onChange={(event) => {
+        if (event.target.value) onSelect(Number(event.target.value));
+      }}
+    >
+      <option disabled value="">
+        Choose a team to trade with…
+      </option>
+      {options.map((team) => (
+        <option key={team.rosterId} value={team.rosterId}>
+          {team.teamName} — {team.ownerName}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function RosterGrid({
   players,
   selectedIds,
   sideIds,
   onAdd,
   onRemove,
+  label = "Your Roster",
+  emptyMessage = "All your tradeable players are already in this trade.",
 }: {
   players: TradeablePlayer[];
   // Cross-side set (give + receive) — a player already picked for the
@@ -651,6 +781,11 @@ function RosterGrid({
   sideIds: string[];
   onAdd: (sleeperId: string) => void;
   onRemove: (sleeperId: string) => void;
+  // Parametrized so this same grid can browse either side's roster — "Your
+  // Roster" for what you're giving, "Their Roster" for the selected trade
+  // partner's players you might receive.
+  label?: string;
+  emptyMessage?: string;
 }) {
   const sideIdSet = useMemo(() => new Set(sideIds), [sideIds]);
 
@@ -674,17 +809,13 @@ function RosterGrid({
   }, [players, sideIds, sideIdSet, selectedIds]);
 
   if (ordered.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        All your tradeable players are already in this trade.
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
   }
 
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        Your Roster
+        {label}
       </p>
       <div className="flex flex-col gap-2">
         {ordered.map((player) => {

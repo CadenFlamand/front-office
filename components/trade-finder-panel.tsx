@@ -27,7 +27,7 @@ export function TradeFinderPanel({
 }: {
   leagueId: string;
   rosterId: number | null;
-  onLoadTrade: (giveIds: string[], receiveIds: string[]) => void;
+  onLoadTrade: (partnerRosterId: number, giveIds: string[], receiveIds: string[]) => void;
 }) {
   const [suggestions, setSuggestions] = useState<WinWinSuggestion[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -101,6 +101,7 @@ export function TradeFinderPanel({
                 key={`${suggestion.partnerRosterId}-${index}`}
                 onLoad={() =>
                   onLoadTrade(
+                    suggestion.partnerRosterId,
                     suggestion.give.map((player) => player.sleeperId),
                     suggestion.receive.map((player) => player.sleeperId)
                   )
