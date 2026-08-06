@@ -9,7 +9,8 @@
     "lint": "eslint",
     "ingest:baselines": "tsx --env-file=.env.local scripts/ingest-position-baselines.ts",
     "ingest:fantasypros": "tsx --env-file=.env.local scripts/ingest-fantasypros-values.ts",
-    "dryrun:trade-finder": "tsx --env-file=.env.local scripts/dry-run-trade-finder.ts"
+    "dryrun:trade-finder": "tsx --env-file=.env.local scripts/dry-run-trade-finder.ts",
+    "ingest:fantasypros-waiver": "tsx --env-file=.env.local scripts/ingest-fantasypros-waiver.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

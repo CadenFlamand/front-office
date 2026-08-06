@@ -152,3 +152,24 @@ CREATE TABLE IF NOT EXISTS fantasypros_values (
   converted_value NUMERIC NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- FantasyPros' Waiver Wire Rankings snapshot, a *different* export from the
+-- draft rankings one above (only published once the season is underway —
+-- there's no meaningful "who's hot on waivers" signal pre-season) — its own
+-- table rather than merged into fantasypros_values, since these rank two
+-- different things for two different purposes (overall trade value vs.
+-- "who should I add this week"). Ingested by
+-- scripts/ingest-fantasypros-waiver.ts once a real export exists; that
+-- script's CSV-column mapping is a deliberate stub until then — see its
+-- top comment. Deliberately minimal: only the fields any FantasyPros rank
+-- export is expected to carry (name/position/team/rank). Extend with
+-- tier/trend/%-owned columns once the real file's actual shape is known,
+-- not guessed at now.
+CREATE TABLE IF NOT EXISTS fantasypros_waiver_values (
+  sleeper_player_id TEXT PRIMARY KEY,
+  player_name TEXT NOT NULL,
+  position TEXT NOT NULL,
+  team TEXT,
+  waiver_rank INTEGER NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

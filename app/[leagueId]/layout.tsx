@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { label: "Players", segment: "/players" },
   { label: "Trade", segment: "/trade" },
   { label: "Odds", segment: "/odds" },
+  { label: "Waivers", segment: "/waivers" },
 ];
 
 export default async function LeagueLayout({
