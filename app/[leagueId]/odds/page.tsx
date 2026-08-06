@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { OddsTeamRow } from "@/components/odds-team-row";
 import { Separator } from "@/components/ui/separator";
 import { isNotFound } from "@/lib/http";
 import { isManualLeagueId } from "@/lib/manual-league";
@@ -62,19 +61,12 @@ export default async function OddsPage({
 
         <div className="flex flex-col gap-3">
           {results.map((result, index) => (
-            <Card key={result.rosterId}>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="w-5 text-sm font-medium text-muted-foreground">
-                    {index + 1}
-                  </span>
-                  <CardTitle className="flex-1">{result.teamName}</CardTitle>
-                  <Badge variant="default" className="tabular-nums">
-                    {(result.playoffOdds * 100).toFixed(1)}%
-                  </Badge>
-                </div>
-              </CardHeader>
-            </Card>
+            <OddsTeamRow
+              key={result.rosterId}
+              leagueId={leagueId}
+              rank={index + 1}
+              result={result}
+            />
           ))}
         </div>
       </div>
