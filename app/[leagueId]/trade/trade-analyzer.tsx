@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SosTierBadge } from "@/components/sos-tier-badge";
+import { TradeFinderPanel } from "@/components/trade-finder-panel";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
 import { isManualLeagueId } from "@/lib/manual-league";
 import { computeManualTradeVerdict } from "@/lib/manual-trade-verdict";
@@ -72,6 +73,14 @@ export function TradeAnalyzer({
   function removePlayer(side: Side, sleeperId: string) {
     if (side === "give") setGiveIds((ids) => ids.filter((id) => id !== sleeperId));
     else setReceiveIds((ids) => ids.filter((id) => id !== sleeperId));
+  }
+
+  // Replaces both sides outright rather than appending — a suggestion is a
+  // complete trade, so merging it into whatever was already staged would
+  // produce something the finder never actually evaluated.
+  function loadTrade(nextGiveIds: string[], nextReceiveIds: string[]) {
+    setGiveIds(nextGiveIds);
+    setReceiveIds(nextReceiveIds);
   }
 
   const giveTotal = sumValues(giveIds, playersById);
@@ -231,6 +240,16 @@ export function TradeAnalyzer({
         isAutoDetected={storedRosterId !== null}
         onSelectSessionTeam={setSessionRosterId}
       />
+
+      {/* Sleeper-only: the finder confirms candidates against the playoff-odds
+          simulation, and a manual league has no schedule to simulate. */}
+      {!manual && (
+        <TradeFinderPanel
+          leagueId={leagueId}
+          onLoadTrade={loadTrade}
+          rosterId={selectedRosterId}
+        />
+      )}
 
       <div className="flex flex-col gap-3">
         {selectedTeam && hasPlayers && verdict ? (
