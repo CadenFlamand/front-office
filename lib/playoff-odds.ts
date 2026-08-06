@@ -9,9 +9,42 @@ const MAX_REGULAR_SEASON_WEEKS = 18;
 // Weight ramps from 0 (pure projection) to 1 (pure actuals) over a team's
 // first 6 games, then stays at 1.
 const GAMES_TO_FULL_WEIGHT = 6;
-// Rough league-wide weekly team-score standard deviation for a standard
-// fantasy format, used before a team has enough actual games of its own.
-const DEFAULT_STD_DEV = 22;
+
+// Duplicated from lib/position-baselines.ts's pprValueToFormat() rather
+// than imported — that module instantiates a Neon client at load time, and
+// nothing importing this file should risk pulling that into a client
+// bundle transitively (see lib/team-advice-format.ts's doc comment for the
+// exact class of production bug this avoids repeating).
+type ScoringFormat = "standard" | "half_ppr" | "ppr";
+function scoringFormat(rec: number | undefined): ScoringFormat {
+  const value = rec ?? 1;
+  if (value <= 0.25) return "standard";
+  if (value < 0.75) return "half_ppr";
+  return "ppr";
+}
+
+// League-wide weekly team-score standard deviation, used for the portion of
+// a team's variance not yet backed by its own actual games (blendWeight
+// below). Derived from real week-to-week fantasy scoring, not a guess:
+// streamed nflverse's 2021-2025 weekly per-player data, took each
+// "startable" player-season's (same tier definition production-pace.ts
+// already uses for this league's format: QB top-12, RB/WR top-36, TE
+// top-24 league-wide) own within-season week-to-week std, pooled those by
+// position (averaging variances then sqrt, not averaging std's directly),
+// and summed as independent variances across a standard 10-slot lineup
+// (QB, RB x2, WR x2, TE, FLEX x2, K, DEF; FLEX approximated as the
+// average of RB/WR variance). K/DEF aren't in that offense-only dataset —
+// literature-typical defaults (4.5, 6.5) were used for those two slots
+// instead of derived ones. Summing as independent variances ignores real
+// positive correlation between teammates (shared game script), so if
+// anything this slightly *understates* true team variance — deliberately
+// not correcting for that without real data to size the correlation, same
+// as every other first-pass threshold in this app.
+const DEFAULT_STD_DEV_BY_FORMAT: Record<ScoringFormat, number> = {
+  standard: 23,
+  half_ppr: 24,
+  ppr: 26,
+};
 const PROJECTION_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
 interface SleeperLeagueSettings {
@@ -97,8 +130,8 @@ function mean(values: number[]): number {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
-function stdDev(values: number[]): number {
-  if (values.length < 2) return DEFAULT_STD_DEV;
+function stdDev(values: number[], fallback: number): number {
+  if (values.length < 2) return fallback;
   const avg = mean(values);
   const variance =
     values.reduce((sum, v) => sum + (v - avg) ** 2, 0) / (values.length - 1);
@@ -166,6 +199,7 @@ export async function buildLeagueSimContext(leagueId: string): Promise<LeagueSim
     getUsers(leagueId),
   ]);
 
+  const defaultStdDev = DEFAULT_STD_DEV_BY_FORMAT[scoringFormat(league.scoring_settings?.rec)];
   const usersById = new Map(users.map((user) => [user.user_id, user]));
   const playoffTeamCount = league.settings?.playoff_teams ?? Math.ceil(rosters.length / 2);
   const regularSeasonWeeks =
@@ -249,8 +283,8 @@ export async function buildLeagueSimContext(leagueId: string): Promise<LeagueSim
     baseProjByRoster.set(roster.roster_id, baseProj);
     actualsWeightByRoster.set(roster.roster_id, weight);
 
-    const actualStd = gamesPlayed >= 2 ? stdDev(actualScores) : DEFAULT_STD_DEV;
-    const simStd = weight * actualStd + (1 - weight) * DEFAULT_STD_DEV;
+    const actualStd = gamesPlayed >= 2 ? stdDev(actualScores, defaultStdDev) : defaultStdDev;
+    const simStd = weight * actualStd + (1 - weight) * defaultStdDev;
 
     const { wins = 0, losses = 0, ties = 0 } = roster.settings ?? {};
 
