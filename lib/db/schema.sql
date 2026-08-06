@@ -153,6 +153,55 @@ CREATE TABLE IF NOT EXISTS fantasypros_values (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- User accounts. Email/password only (no OAuth) — password_hash is bcrypt,
+-- never plaintext, and is the only place credentials live.
+--
+-- email is stored lowercased. The CHECK enforces that at the database level
+-- rather than trusting every future code path to normalize first, which in
+-- turn makes the plain UNIQUE constraint effectively case-insensitive
+-- (without a functional index, so ON CONFLICT (email) still works normally).
+--
+-- plan gates the league quota (see user_leagues below). No billing here —
+-- 'premium' is set by hand for now; real payment processing is a separate
+-- future project.
+CREATE TABLE IF NOT EXISTS users (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         TEXT NOT NULL UNIQUE CHECK (email = lower(email)),
+  password_hash TEXT NOT NULL,
+  plan          TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'premium')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Which leagues a user has added to their account.
+--
+-- Deliberately a join table rather than a user_id column on tracked_leagues:
+-- a Sleeper league is inherently multi-user (twelve managers share one real
+-- league), and tracked_leagues.league_id is a PRIMARY KEY that doubles as
+-- the snapshot Cron's work queue (getTrackedLeagueIds() ->
+-- app/api/snapshot/route.ts). Putting ownership there would either stop two
+-- leaguemates from both using the app, or break the Cron. This table is the
+-- ownership layer; tracked_leagues stays the global snapshot registry, and
+-- a league is snapshotted if *any* user has added it.
+--
+-- PRIMARY KEY (user_id, league_id) constrains the pair, not league_id
+-- alone: any number of users may add the same league (each row counts
+-- against that user's own quota), while one user can't add the same league
+-- twice. Nobody "owns" a league_id exclusively.
+--
+-- league_id is intentionally NOT a foreign key — it spans both league kinds
+-- (a Sleeper numeric ID, or a "manual-<uuid>" ID from manual_leagues),
+-- discriminated by prefix exactly as lib/manual-league.ts's
+-- isManualLeagueId() already does throughout the app.
+--
+-- No separate index on user_id: the composite primary key's btree is
+-- user_id-first, so quota counts and "my leagues" lookups already use it.
+CREATE TABLE IF NOT EXISTS user_leagues (
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  league_id  TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, league_id)
+);
+
 -- FantasyPros' Waiver Wire Rankings snapshot, a *different* export from the
 -- draft rankings one above (only published once the season is underway —
 -- there's no meaningful "who's hot on waivers" signal pre-season) — its own
