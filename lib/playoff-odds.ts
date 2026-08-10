@@ -64,6 +64,13 @@ interface SleeperMatchup {
   starters: string[] | null;
 }
 
+interface SleeperNflState {
+  week?: number;
+  display_week?: number;
+  season?: string;
+  season_type?: string;
+}
+
 interface SleeperProjection {
   player_id: string;
   stats?: Record<string, number>;
@@ -92,6 +99,64 @@ function getMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> 
   return fetchJson(`${SLEEPER_BASE}/league/${leagueId}/matchups/${week}`, {
     next: { revalidate: 3600 },
   });
+}
+
+function getNflState(): Promise<SleeperNflState> {
+  return fetchJson(`${SLEEPER_BASE}/state/nfl`, { next: { revalidate: 3600 } });
+}
+
+// Whether a week's matchups are confirmed final, replacing the old
+// "any recorded points > 0" heuristic. That heuristic misread a live,
+// in-progress week as complete: Sleeper's points field updates in real
+// time as stats come in, so it went true the moment the week's first
+// touchdown was scored, not when the week actually finished — banking a
+// partial score as if final, and pulling the whole week out of the
+// remaining schedule to simulate while most of it hadn't been decided yet.
+//
+// Uses Sleeper's own week/season state instead, which is the same source
+// Sleeper itself uses to mark a week as wrapped:
+//
+// - A league whose season is strictly before the live NFL season is
+//   entirely in the past — every week already happened.
+// - Within the live season, `nflState.week` only means the same thing as
+//   this league's week numbers while season_type is "regular": during
+//   "pre" (preseason) the week counter restarts at 1 for exhibition games
+//   that have nothing to do with fantasy scoring, and during "post" the
+//   real NFL regular season is over, so every fantasy week (which only
+//   spans the regular season) is already in the past regardless of the
+//   playoffs' own week numbering. Confirmed live while building this: the
+//   API is currently returning week=1 with season_type="pre", which a
+//   naive `week < nflState.week` comparison would have badly misread as
+//   "week 1 already happened" the moment preseason games started.
+// - If the state fetch itself fails, or a league's season is somehow ahead
+//   of the live one (shouldn't normally happen), the old points-based
+//   check survives as a fallback rather than the whole computation
+//   breaking over one ancillary fetch — mirroring how this function
+//   already falls back to actuals-only estimates if the projections fetch
+//   fails below.
+function isWeekComplete(
+  week: number,
+  weekMatchups: SleeperMatchup[],
+  nflState: SleeperNflState | null,
+  leagueSeason: string
+): boolean {
+  const pointsFallback = () =>
+    weekMatchups.length > 0 && weekMatchups.some((m) => (m.points ?? 0) > 0);
+
+  if (!nflState || !nflState.season) return pointsFallback();
+
+  const league = Number(leagueSeason);
+  const live = Number(nflState.season);
+  if (league < live) return true;
+  if (league > live) return pointsFallback();
+
+  if (nflState.season_type === "post") return true;
+  if (nflState.season_type !== "regular") return false;
+
+  const liveWeek =
+    nflState.week && nflState.week > 0 ? nflState.week : (nflState.display_week ?? 0);
+  if (liveWeek <= 0) return pointsFallback();
+  return week < liveWeek;
 }
 
 // The full-league, all-position payload here is a couple MB — over Next's
@@ -199,6 +264,17 @@ export async function buildLeagueSimContext(leagueId: string): Promise<LeagueSim
     getUsers(leagueId),
   ]);
 
+  // Own try/catch, not part of the Promise.all above: a hiccup on this one
+  // ancillary endpoint shouldn't take down the whole computation.
+  // isWeekComplete() falls back to the old points-based heuristic when this
+  // is null.
+  let nflState: SleeperNflState | null = null;
+  try {
+    nflState = await getNflState();
+  } catch {
+    nflState = null;
+  }
+
   const defaultStdDev = DEFAULT_STD_DEV_BY_FORMAT[scoringFormat(league.scoring_settings?.rec)];
   const usersById = new Map(users.map((user) => [user.user_id, user]));
   const playoffTeamCount = league.settings?.playoff_teams ?? Math.ceil(rosters.length / 2);
@@ -219,8 +295,7 @@ export async function buildLeagueSimContext(leagueId: string): Promise<LeagueSim
 
   weekNumbers.forEach((week, i) => {
     const weekMatchups = matchupsByWeek[i];
-    const wasPlayed =
-      weekMatchups.length > 0 && weekMatchups.some((m) => (m.points ?? 0) > 0);
+    const wasPlayed = isWeekComplete(week, weekMatchups, nflState, league.season);
 
     if (wasPlayed) {
       for (const m of weekMatchups) {
