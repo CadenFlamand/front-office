@@ -8,26 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { addSleeperLeague } from "@/lib/add-league-action";
-
-const LAST_LEAGUE_STORAGE_KEY = "front-office:last-league";
-
-interface LastLeague {
-  leagueId: string;
-  leagueName: string;
-}
-
-function parseLastLeague(raw: string | null): LastLeague | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<LastLeague>;
-    if (typeof parsed.leagueId === "string" && typeof parsed.leagueName === "string") {
-      return { leagueId: parsed.leagueId, leagueName: parsed.leagueName };
-    }
-  } catch {
-    // Ignore malformed stored data.
-  }
-  return null;
-}
+import {
+  LAST_LEAGUE_STORAGE_KEY,
+  parseLastLeague,
+  rememberLastLeague,
+} from "@/lib/last-league";
 
 function subscribe(callback: () => void) {
   window.addEventListener("storage", callback);
@@ -53,10 +38,7 @@ export function LeagueEntry() {
   const lastLeague = parseLastLeague(storedRaw);
 
   function goToLeague(id: string, name: string) {
-    window.localStorage.setItem(
-      LAST_LEAGUE_STORAGE_KEY,
-      JSON.stringify({ leagueId: id, leagueName: name })
-    );
+    rememberLastLeague(id, name);
     router.push(`/${id}`);
   }
 
@@ -139,8 +121,12 @@ export function LeagueEntry() {
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have a Sleeper league?{" "}
+        <Link href="/start/espn" className="underline underline-offset-2 hover:text-foreground">
+          Connect an ESPN league
+        </Link>{" "}
+        or{" "}
         <Link href="/start/manual" className="underline underline-offset-2 hover:text-foreground">
-          Enter one manually
+          enter one manually
         </Link>
       </p>
     </div>

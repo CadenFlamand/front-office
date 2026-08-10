@@ -1,11 +1,18 @@
+import { buildEspnSimInputs } from "./espn/sim-context";
+import { isEspnLeagueId, parseEspnLeagueId } from "./espn-league";
 import { fetchJson } from "./http";
-import { getRecord, getRosters, getTeamName, getUsers } from "./sleeper";
+import { getLeagueData } from "./league-data";
+import {
+  formatRecord,
+  managerTeamName,
+  type LeagueSimInputs,
+  type ScheduledMatchup,
+} from "./league-types";
 
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
 const PROJECTIONS_BASE = "https://api.sleeper.app/projections/nfl";
 
 const NUM_SIMULATIONS = 10000;
-const MAX_REGULAR_SEASON_WEEKS = 18;
 // Weight ramps from 0 (pure projection) to 1 (pure actuals) over a team's
 // first 6 games, then stays at 1.
 const GAMES_TO_FULL_WEIGHT = 6;
@@ -47,16 +54,6 @@ const DEFAULT_STD_DEV_BY_FORMAT: Record<ScoringFormat, number> = {
 };
 const PROJECTION_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
 
-interface SleeperLeagueSettings {
-  league_id: string;
-  season: string;
-  settings: {
-    playoff_teams?: number;
-    playoff_week_start?: number;
-  } | null;
-  scoring_settings: { rec?: number } | null;
-}
-
 interface SleeperMatchup {
   roster_id: number;
   matchup_id: number | null;
@@ -89,10 +86,6 @@ export interface GetPlayoffOddsOptions {
   // lets callers (e.g. the trade analyzer) preview odds under a hypothetical
   // roster without touching real Sleeper data.
   rosterOverrides?: Map<number, string[]>;
-}
-
-function getLeagueSettings(leagueId: string): Promise<SleeperLeagueSettings> {
-  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`, { next: { revalidate: 3600 } });
 }
 
 function getMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> {
@@ -229,10 +222,6 @@ interface TeamState {
   simStd: number;
 }
 
-interface ScheduledMatchup {
-  week: number;
-  rosterIds: [number, number];
-}
 
 export interface LeagueSimContext {
   teams: TeamState[];
@@ -248,26 +237,102 @@ export interface LeagueSimContext {
 }
 
 /**
- * Does all the fetching and per-team estimation for a playoff-odds run:
- * blended scoring mean/std, the remaining schedule, and the projection
- * reference points an override is measured against.
+ * Turns source-neutral inputs into a simulation context: blended scoring
+ * mean/std per team, and the projection reference points a roster override is
+ * measured against.
  *
- * Split from the simulation itself so a caller evaluating many hypothetical
- * rosters (the trade finder confirming a shortlist) can build this once and
- * then run simulateSeason() per candidate, instead of refetching a league's
- * whole season of matchups for every one.
+ * Source-independent by construction — it never learns where the league came
+ * from. Projections are always Sleeper's, keyed by Sleeper player ID, which is
+ * exactly why lib/espn/player-map.ts translates ESPN rosters into that ID
+ * space: one projection source serves both, and every estimate below is
+ * computed the same way for an ESPN league as for a Sleeper one.
  */
-export async function buildLeagueSimContext(leagueId: string): Promise<LeagueSimContext> {
-  const [league, rosters, users] = await Promise.all([
-    getLeagueSettings(leagueId),
-    getRosters(leagueId),
-    getUsers(leagueId),
-  ]);
+async function assembleSimContext(inputs: LeagueSimInputs): Promise<LeagueSimContext> {
+  const { league, rosters, managers, actualScoresByRoster, remainingSchedule } = inputs;
 
-  // Own try/catch, not part of the Promise.all above: a hiccup on this one
-  // ancillary endpoint shouldn't take down the whole computation.
-  // isWeekComplete() falls back to the old points-based heuristic when this
-  // is null.
+  const defaultStdDev = DEFAULT_STD_DEV_BY_FORMAT[scoringFormat(league.pprValue)];
+  const managersById = new Map(managers.map((manager) => [manager.ownerId, manager]));
+
+  const nextRemainingWeek = remainingSchedule.reduce<number | null>(
+    (min, m) => (min === null || m.week < min ? m.week : min),
+    null
+  );
+
+  let projectionsById: Map<string, number> = new Map();
+  if (nextRemainingWeek !== null) {
+    const field = projectionField(league.pprValue);
+    try {
+      const projections = await getProjections(league.season, nextRemainingWeek);
+      projectionsById = new Map(
+        projections.map((p) => [p.player_id, p.stats?.[field] ?? 0])
+      );
+    } catch {
+      // Projections unavailable (e.g. week/season out of coverage) — fall
+      // back to actuals-only estimates below.
+      projectionsById = new Map();
+    }
+  }
+
+  function projectionAverage(starters: string[]): number {
+    if (starters.length === 0) return 0;
+    return starters.reduce((sum, id) => sum + (projectionsById.get(id) ?? 0), 0);
+  }
+
+  const baseProjByRoster = new Map<number, number>();
+  const actualsWeightByRoster = new Map<number, number>();
+
+  const teams: TeamState[] = rosters.map((roster) => {
+    const manager = roster.ownerId ? managersById.get(roster.ownerId) : undefined;
+    const actualScores = actualScoresByRoster.get(roster.rosterId) ?? [];
+    const gamesPlayed = actualScores.length;
+    const weight = blendWeight(gamesPlayed);
+
+    const actualAvg = mean(actualScores);
+    const baseProj = projectionAverage(roster.starters);
+    baseProjByRoster.set(roster.rosterId, baseProj);
+    actualsWeightByRoster.set(roster.rosterId, weight);
+
+    const actualStd = gamesPlayed >= 2 ? stdDev(actualScores, defaultStdDev) : defaultStdDev;
+    const simStd = weight * actualStd + (1 - weight) * defaultStdDev;
+
+    return {
+      rosterId: roster.rosterId,
+      teamName: managerTeamName(manager),
+      record: formatRecord(roster),
+      wins: roster.wins,
+      losses: roster.losses,
+      ties: roster.ties,
+      points: actualScores.reduce((sum, v) => sum + v, 0),
+      baseSimMean: weight * actualAvg + (1 - weight) * baseProj,
+      simStd,
+    };
+  });
+
+  return {
+    teams,
+    remainingSchedule,
+    playoffTeamCount: league.playoffTeams,
+    baseProjByRoster,
+    projectedPtsById: projectionsById,
+    actualsWeightByRoster,
+  };
+}
+
+/**
+ * Sleeper's half of the input build: which weeks have been played, and what's
+ * left on the schedule.
+ *
+ * Sleeper exposes no "is this matchup final" flag, so completion has to be
+ * inferred from NFL season state — see isWeekComplete() above for why the
+ * obvious points-based heuristic is wrong. (ESPN, by contrast, marks each game
+ * UNDECIDED until it's final and needs none of this.)
+ */
+async function buildSleeperSimInputs(leagueId: string): Promise<LeagueSimInputs> {
+  const { league, rosters, managers } = await getLeagueData(leagueId);
+
+  // Own try/catch, not part of a Promise.all: a hiccup on this one ancillary
+  // endpoint shouldn't take down the whole computation. isWeekComplete() falls
+  // back to the old points-based heuristic when this is null.
   let nflState: SleeperNflState | null = null;
   try {
     nflState = await getNflState();
@@ -275,21 +340,14 @@ export async function buildLeagueSimContext(leagueId: string): Promise<LeagueSim
     nflState = null;
   }
 
-  const defaultStdDev = DEFAULT_STD_DEV_BY_FORMAT[scoringFormat(league.scoring_settings?.rec)];
-  const usersById = new Map(users.map((user) => [user.user_id, user]));
-  const playoffTeamCount = league.settings?.playoff_teams ?? Math.ceil(rosters.length / 2);
-  const regularSeasonWeeks =
-    league.settings?.playoff_week_start && league.settings.playoff_week_start > 1
-      ? league.settings.playoff_week_start - 1
-      : MAX_REGULAR_SEASON_WEEKS;
-
+  const regularSeasonWeeks = league.playoffWeekStart - 1;
   const weekNumbers = Array.from({ length: regularSeasonWeeks }, (_, i) => i + 1);
   const matchupsByWeek = await Promise.all(
     weekNumbers.map((week) => getMatchups(leagueId, week))
   );
 
   const actualScoresByRoster = new Map<number, number[]>();
-  for (const roster of rosters) actualScoresByRoster.set(roster.roster_id, []);
+  for (const roster of rosters) actualScoresByRoster.set(roster.rosterId, []);
 
   const remainingSchedule: ScheduledMatchup[] = [];
 
@@ -318,72 +376,25 @@ export async function buildLeagueSimContext(leagueId: string): Promise<LeagueSim
     }
   });
 
-  const nextRemainingWeek = remainingSchedule.reduce<number | null>(
-    (min, m) => (min === null || m.week < min ? m.week : min),
-    null
-  );
+  return { league, rosters, managers, actualScoresByRoster, remainingSchedule };
+}
 
-  let projectionsById: Map<string, number> = new Map();
-  if (nextRemainingWeek !== null) {
-    const field = projectionField(league.scoring_settings?.rec);
-    try {
-      const projections = await getProjections(league.season, nextRemainingWeek);
-      projectionsById = new Map(
-        projections.map((p) => [p.player_id, p.stats?.[field] ?? 0])
-      );
-    } catch {
-      // Projections unavailable (e.g. week/season out of coverage) — fall
-      // back to actuals-only estimates below.
-      projectionsById = new Map();
-    }
-  }
-
-  function projectionAverage(starters: string[] | null | undefined): number {
-    const filtered = (starters ?? []).filter((id) => id && id !== "0");
-    if (filtered.length === 0) return 0;
-    return filtered.reduce((sum, id) => sum + (projectionsById.get(id) ?? 0), 0);
-  }
-
-  const baseProjByRoster = new Map<number, number>();
-  const actualsWeightByRoster = new Map<number, number>();
-
-  const teams: TeamState[] = rosters.map((roster) => {
-    const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined;
-    const actualScores = actualScoresByRoster.get(roster.roster_id) ?? [];
-    const gamesPlayed = actualScores.length;
-    const weight = blendWeight(gamesPlayed);
-
-    const actualAvg = mean(actualScores);
-    const baseProj = projectionAverage(roster.starters);
-    baseProjByRoster.set(roster.roster_id, baseProj);
-    actualsWeightByRoster.set(roster.roster_id, weight);
-
-    const actualStd = gamesPlayed >= 2 ? stdDev(actualScores, defaultStdDev) : defaultStdDev;
-    const simStd = weight * actualStd + (1 - weight) * defaultStdDev;
-
-    const { wins = 0, losses = 0, ties = 0 } = roster.settings ?? {};
-
-    return {
-      rosterId: roster.roster_id,
-      teamName: getTeamName(owner),
-      record: getRecord(roster),
-      wins,
-      losses,
-      ties,
-      points: actualScores.reduce((sum, v) => sum + v, 0),
-      baseSimMean: weight * actualAvg + (1 - weight) * baseProj,
-      simStd,
-    };
-  });
-
-  return {
-    teams,
-    remainingSchedule,
-    playoffTeamCount,
-    baseProjByRoster,
-    projectedPtsById: projectionsById,
-    actualsWeightByRoster,
-  };
+/**
+ * Does all the fetching and per-team estimation for a playoff-odds run:
+ * blended scoring mean/std, the remaining schedule, and the projection
+ * reference points an override is measured against.
+ *
+ * Split from the simulation itself so a caller evaluating many hypothetical
+ * rosters (the trade finder confirming a shortlist) can build this once and
+ * then run simulateSeason() per candidate, instead of refetching a league's
+ * whole season of matchups for every one.
+ */
+export async function buildLeagueSimContext(leagueId: string): Promise<LeagueSimContext> {
+  const ref = isEspnLeagueId(leagueId) ? parseEspnLeagueId(leagueId) : null;
+  const inputs = ref
+    ? await buildEspnSimInputs(leagueId, ref)
+    : await buildSleeperSimInputs(leagueId);
+  return assembleSimContext(inputs);
 }
 
 /**

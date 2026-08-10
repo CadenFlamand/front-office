@@ -1,7 +1,7 @@
 import { getPlayerValues, type TradeablePlayer } from "./fantasycalc";
-import { fetchJson } from "./http";
+import { getLeagueData } from "./league-data";
+import { formatRecord, managerDisplayName, managerTeamName } from "./league-types";
 import { getPlayoffOdds } from "./playoff-odds";
-import { getLeague, getRecord, getRosters, getTeamName, getUsers } from "./sleeper";
 
 export type PlayoffBucket =
   | "Playoff Favorite"
@@ -27,22 +27,6 @@ export interface TeamContext {
   // value (i.e. tradeable skill players) — used to scope "You Give" to this
   // team's actual roster instead of the full league player pool.
   rosterPlayerIds: string[];
-}
-
-// Duplicated rather than imported from lib/sleeper.ts so this module never
-// depends on (or risks changing) the pages already built on that file.
-const SLEEPER_BASE = "https://api.sleeper.app/v1";
-
-interface SleeperLeagueScoring {
-  scoring_settings: { rec?: number } | null;
-}
-
-// lib/sleeper.ts's getLeague() doesn't expose scoring_settings, so this
-// fetches the same league endpoint again for just that field. Next.js
-// dedupes identical fetch()s within a request, so this doesn't cost an
-// extra round trip in practice.
-function getLeagueScoring(leagueId: string): Promise<SleeperLeagueScoring> {
-  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`, { next: { revalidate: 3600 } });
 }
 
 const STARTER_POSITIONS = ["QB", "RB", "WR", "TE"] as const;
@@ -320,46 +304,39 @@ export async function getTeamContexts(leagueId: string): Promise<{
   teams: TeamContext[];
   values: TradeablePlayer[];
 }> {
-  const [league, leagueScoring] = await Promise.all([
-    getLeague(leagueId),
-    getLeagueScoring(leagueId),
-  ]);
+  const { league, rosters, managers } = await getLeagueData(leagueId);
 
-  const [rosters, users, values, playoffOdds] = await Promise.all([
-    getRosters(leagueId),
-    getUsers(leagueId),
+  const [values, playoffOdds] = await Promise.all([
     getPlayerValues({
-      totalRosters: league.total_rosters,
-      pprValue: leagueScoring.scoring_settings?.rec,
-      rosterPositions: league.roster_positions,
+      totalRosters: league.totalRosters,
+      pprValue: league.pprValue,
+      rosterPositions: league.rosterPositions,
     }),
     getPlayoffOdds(leagueId),
   ]);
 
-  const usersById = new Map(users.map((user) => [user.user_id, user]));
+  const managersById = new Map(managers.map((manager) => [manager.ownerId, manager]));
   const valuesById = new Map(values.map((player) => [player.sleeperId, player]));
   const compositeRanks = computeCompositePositionRanks(valuesById);
   const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));
-  const requiredStarters = countStarterSlots(league.roster_positions);
+  const requiredStarters = countStarterSlots(league.rosterPositions);
 
   const teams = rosters.map((roster) => {
-    const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined;
-    const rosterPlayerIds = (roster.players ?? []).filter((id) =>
-      valuesById.has(id)
-    );
+    const manager = roster.ownerId ? managersById.get(roster.ownerId) : undefined;
+    const rosterPlayerIds = roster.players.filter((id) => valuesById.has(id));
 
     return {
-      rosterId: roster.roster_id,
-      teamName: getTeamName(owner),
-      ownerName: owner?.display_name ?? "Unassigned",
-      record: getRecord(roster),
-      bucket: getPlayoffBucket(oddsByRosterId.get(roster.roster_id) ?? 0),
+      rosterId: roster.rosterId,
+      teamName: managerTeamName(manager),
+      ownerName: managerDisplayName(manager),
+      record: formatRecord(roster),
+      bucket: getPlayoffBucket(oddsByRosterId.get(roster.rosterId) ?? 0),
       thinPositions: computeThinPositions(
-        roster.players ?? [],
+        roster.players,
         valuesById,
         compositeRanks,
         requiredStarters,
-        league.total_rosters
+        league.totalRosters
       ),
       positionStrength: computePositionStrength(rosterPlayerIds, valuesById, compositeRanks),
       rosterPlayerIds,

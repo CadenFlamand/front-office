@@ -14,7 +14,9 @@ import { getPlayerValues, type TradeablePlayer } from "../lib/fantasycalc";
 import { getCurrentNflWeek, getWeeklyProjectedPoints } from "../lib/projections";
 import { computeLeagueProductionPace } from "../lib/production-pace";
 import { startingSlotsOf } from "../lib/lineup";
-import { getAllPlayers, getLeague, getRosters, getTeamName, getUsers } from "../lib/sleeper";
+import { getLeagueData } from "../lib/league-data";
+import { managerTeamName } from "../lib/league-types";
+import { getAllPlayers } from "../lib/sleeper";
 import {
   computeCompositePositionRanks,
   countStarterSlots,
@@ -58,27 +60,21 @@ function shape(candidate: TradeCandidate): string {
 async function main() {
   console.log(`league ${leagueId}\n`);
 
-  const league = await getLeague(leagueId);
-  const [rosters, users, allPlayers] = await Promise.all([
-    getRosters(leagueId),
-    getUsers(leagueId),
+  const [{ league, rosters, managers }, allPlayers] = await Promise.all([
+    getLeagueData(leagueId),
     getAllPlayers(),
   ]);
 
-  const leagueDetail = (await (
-    await fetch(`https://api.sleeper.app/v1/league/${leagueId}`)
-  ).json()) as { scoring_settings: { rec?: number } | null };
-
   const values = await getPlayerValues({
-    totalRosters: league.total_rosters,
-    pprValue: leagueDetail.scoring_settings?.rec,
-    rosterPositions: league.roster_positions,
+    totalRosters: league.totalRosters,
+    pprValue: league.pprValue,
+    rosterPositions: league.rosterPositions,
   });
 
   const playersById = new Map(values.map((p) => [p.sleeperId, p]));
   const compositeRanks = computeCompositePositionRanks(playersById);
-  const requiredStarters = countStarterSlots(league.roster_positions);
-  const startingSlots = startingSlotsOf(league.roster_positions);
+  const requiredStarters = countStarterSlots(league.rosterPositions);
+  const startingSlots = startingSlotsOf(league.rosterPositions);
 
   const positionByPlayerId = new Map<string, string>();
   for (const [id, player] of Object.entries(allPlayers)) {
@@ -89,12 +85,12 @@ async function main() {
   const projectedPtsById = await getWeeklyProjectedPoints(league.season, currentWeek);
   const leaguePace = await computeLeagueProductionPace(leagueId, playersById);
 
-  const usersById = new Map(users.map((u) => [u.user_id, u]));
+  const managersById = new Map(managers.map((m) => [m.ownerId, m]));
   const teams: FinderTeam[] = rosters.map((roster) => ({
-    rosterId: roster.roster_id,
-    teamName: getTeamName(roster.owner_id ? usersById.get(roster.owner_id) : undefined),
-    valuedPlayerIds: (roster.players ?? []).filter((id) => playersById.has(id)),
-    allPlayerIds: (roster.players ?? []).filter((id) => id && id !== "0"),
+    rosterId: roster.rosterId,
+    teamName: managerTeamName(roster.ownerId ? managersById.get(roster.ownerId) : undefined),
+    valuedPlayerIds: roster.players.filter((id) => playersById.has(id)),
+    allPlayerIds: roster.players,
   }));
 
   const nonZeroProjections = [...projectedPtsById.values()].filter((v) => v > 0).length;
@@ -125,7 +121,7 @@ async function main() {
       playersById,
       compositeRanks,
       requiredStarters,
-      league.total_rosters,
+      league.totalRosters,
       leaguePace
     );
     const needs = fit.needs.length > 0 ? fit.needs.map(flagLabel).join(", ") : "none";
@@ -157,7 +153,7 @@ async function main() {
     compositeRanks,
     startingSlots,
     requiredStarters,
-    totalRosters: league.total_rosters,
+    totalRosters: league.totalRosters,
     leaguePace,
   });
   const elapsed = Date.now() - started;

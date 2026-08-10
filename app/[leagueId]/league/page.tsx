@@ -17,18 +17,14 @@ import {
   formatManualRecord,
   isManualLeagueId,
 } from "@/lib/manual-league";
-import { getPlayoffOdds } from "@/lib/playoff-odds";
+import { getLeagueData } from "@/lib/league-data";
 import {
-  getAllPlayers,
-  getAvatarUrl,
-  getLeague,
-  getPlayerName,
-  getRecord,
-  getRosters,
-  getTeamName,
-  getUsers,
-  type SleeperRoster,
-} from "@/lib/sleeper";
+  formatRecord,
+  managerTeamName,
+  type LeagueRoster,
+} from "@/lib/league-types";
+import { getPlayoffOdds } from "@/lib/playoff-odds";
+import { getAllPlayers, getPlayerName } from "@/lib/sleeper";
 
 export const metadata = {
   title: "League | Front Office",
@@ -50,20 +46,22 @@ interface RosterSlot {
 }
 
 function getStarterSlots(
-  roster: SleeperRoster,
+  roster: LeagueRoster,
   rosterPositions: string[]
 ): RosterSlot[] {
-  const startingLabels = rosterPositions.filter((pos) => pos !== "BN");
-  const starters = roster.starters ?? [];
+  // IR is a reserve slot, not a lineup slot, so it's excluded alongside the
+  // bench — otherwise an ESPN league's IR spots would show up as trailing
+  // "Empty" starter rows.
+  const startingLabels = rosterPositions.filter((pos) => pos !== "BN" && pos !== "IR");
   return startingLabels.map((label, i) => ({
     label,
-    playerId: starters[i] ?? "",
+    playerId: roster.starters[i] ?? "",
   }));
 }
 
-function getBenchPlayerIds(roster: SleeperRoster): string[] {
-  const starters = new Set(roster.starters ?? []);
-  return (roster.players ?? []).filter((id) => !starters.has(id));
+function getBenchPlayerIds(roster: LeagueRoster): string[] {
+  const starters = new Set(roster.starters);
+  return roster.players.filter((id) => !starters.has(id));
 }
 
 export default async function LeaguePage({
@@ -140,12 +138,10 @@ export default async function LeaguePage({
     );
   }
 
-  let league, rosters, users, players, playoffOdds;
+  let leagueData, players, playoffOdds;
   try {
-    [league, rosters, users, players, playoffOdds] = await Promise.all([
-      getLeague(leagueId),
-      getRosters(leagueId),
-      getUsers(leagueId),
+    [leagueData, players, playoffOdds] = await Promise.all([
+      getLeagueData(leagueId),
       getAllPlayers(),
       getPlayoffOdds(leagueId),
     ]);
@@ -154,14 +150,15 @@ export default async function LeaguePage({
     throw error;
   }
 
-  const usersById = new Map(users.map((user) => [user.user_id, user]));
+  const { league, rosters, managers } = leagueData;
+  const managersById = new Map(managers.map((manager) => [manager.ownerId, manager]));
   const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));
 
   const sortedRosters = [...rosters].sort((a, b) => {
     const oddsDiff =
-      (oddsByRosterId.get(b.roster_id) ?? 0) - (oddsByRosterId.get(a.roster_id) ?? 0);
+      (oddsByRosterId.get(b.rosterId) ?? 0) - (oddsByRosterId.get(a.rosterId) ?? 0);
     if (oddsDiff !== 0) return oddsDiff;
-    return (b.settings?.fpts ?? 0) - (a.settings?.fpts ?? 0);
+    return b.pointsFor - a.pointsFor;
   });
 
   return (
@@ -172,7 +169,7 @@ export default async function LeaguePage({
             {league.name}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
-            {league.season} season &middot; {league.total_rosters} teams
+            {league.season} season &middot; {league.totalRosters} teams
           </p>
         </div>
 
@@ -180,41 +177,41 @@ export default async function LeaguePage({
 
         <div className="flex flex-col gap-6">
           {sortedRosters.map((roster, index) => {
-            const owner = roster.owner_id
-              ? usersById.get(roster.owner_id)
+            const manager = roster.ownerId
+              ? managersById.get(roster.ownerId)
               : undefined;
-            const teamName = getTeamName(owner);
+            const teamName = managerTeamName(manager);
             const starterSlots = getStarterSlots(
               roster,
-              league.roster_positions
+              league.rosterPositions
             );
             const benchIds = getBenchPlayerIds(roster);
 
             return (
-              <Card key={roster.roster_id}>
+              <Card key={roster.rosterId}>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <span className="w-5 text-sm font-medium text-muted-foreground">
                       {index + 1}
                     </span>
                     <Avatar>
-                      <AvatarImage src={getAvatarUrl(owner?.avatar ?? null)} />
+                      <AvatarImage src={manager?.avatarUrl} />
                       <AvatarFallback>{initials(teamName)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-1 items-center justify-between gap-2">
                       <div>
                         <CardTitle>{teamName}</CardTitle>
-                        {owner?.display_name && (
+                        {manager?.displayName && (
                           <CardDescription>
-                            {owner.display_name}
+                            {manager.displayName}
                           </CardDescription>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="default" className="tabular-nums">
-                          {((oddsByRosterId.get(roster.roster_id) ?? 0) * 100).toFixed(1)}%
+                          {((oddsByRosterId.get(roster.rosterId) ?? 0) * 100).toFixed(1)}%
                         </Badge>
-                        <Badge variant="secondary">{getRecord(roster)}</Badge>
+                        <Badge variant="secondary">{formatRecord(roster)}</Badge>
                       </div>
                     </div>
                   </div>
