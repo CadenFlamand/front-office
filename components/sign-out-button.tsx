@@ -5,7 +5,7 @@ import { LogOut } from "lucide-react";
 
 import { signOut } from "@/lib/auth/actions";
 
-export function SignOutButton() {
+export function SignOutButton({ showLabel = false }: { showLabel?: boolean }) {
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -18,7 +18,7 @@ export function SignOutButton() {
       type="button"
     >
       <LogOut aria-hidden="true" className="size-4" />
-      <span className="hidden sm:inline">Sign out</span>
+      <span className={showLabel ? undefined : "hidden sm:inline"}>Sign out</span>
     </button>
   );
 }

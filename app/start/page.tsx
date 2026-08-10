@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { LeagueEntry } from "@/components/league-entry";
 import { requireUser } from "@/lib/auth/dal";
 
@@ -18,6 +20,13 @@ export default async function Home() {
         </div>
 
         <LeagueEntry />
+
+        <Link
+          className="text-center text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          href="/account"
+        >
+          Account settings
+        </Link>
       </div>
     </div>
   );

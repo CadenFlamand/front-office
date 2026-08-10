@@ -2,13 +2,16 @@
 
 import { redirect } from "next/navigation";
 
-import { createUser, verifyCredentials } from "@/lib/db/users";
+import { getCurrentUser } from "@/lib/auth/dal";
+import { createUser, updatePassword, verifyCredentials, verifyCurrentPassword } from "@/lib/db/users";
 
 import { createSession, destroySession } from "./session";
 
 export interface AuthFormResult {
   error: string;
 }
+
+export type ChangePasswordResult = { ok: true } | { ok: false; error: string };
 
 // Low enough not to annoy, high enough to rule out trivially guessable
 // passwords. Deliberately no composition rules (symbols/digits/case), which
@@ -60,4 +63,35 @@ export async function signIn(email: string, password: string): Promise<AuthFormR
 export async function signOut(): Promise<void> {
   await destroySession();
   redirect("/signin");
+}
+
+/**
+ * Requires the current password rather than trusting the session alone —
+ * the session cookie can outlive a shoulder-surfed or left-open browser tab
+ * for up to 30 days, so a password change (the recovery path if someone else
+ * gets access) shouldn't be doable with just that cookie.
+ *
+ * Hashes the new password the same way sign-up does (updatePassword ->
+ * hashPassword, bcrypt) — there is only one hashing path in the app.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<ChangePasswordResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You need to be signed in." };
+
+  if (!currentPassword) return { ok: false, error: "Enter your current password." };
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    return { ok: false, error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
+  }
+  if (newPassword === currentPassword) {
+    return { ok: false, error: "New password must be different from your current password." };
+  }
+
+  const valid = await verifyCurrentPassword(user.id, currentPassword);
+  if (!valid) return { ok: false, error: "Current password is incorrect." };
+
+  await updatePassword(user.id, newPassword);
+  return { ok: true };
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { UserRound } from "lucide-react";
 
 import { ScrollableNav } from "@/components/scrollable-nav";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -49,7 +50,19 @@ export default async function LeagueLayout({
           }))}
         />
         <div className="ml-2 flex shrink-0 items-center gap-3">
-          {user && <SignOutButton />}
+          {user && (
+            <>
+              <Link
+                aria-label="Account"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                href="/account"
+                title="Account"
+              >
+                <UserRound aria-hidden="true" className="size-4" />
+              </Link>
+              <SignOutButton />
+            </>
+          )}
           <ThemeToggle />
         </div>
       </nav>

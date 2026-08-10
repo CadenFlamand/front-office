@@ -87,3 +87,25 @@ export async function verifyCredentials(
   const valid = await verifyPassword(plaintextPassword, row.password_hash ?? DUMMY_HASH);
   return valid ? toUser(row) : null;
 }
+
+/**
+ * For the change-password flow: the caller already has a valid session (so
+ * there's no email-enumeration timing concern to guard against, unlike
+ * verifyCredentials), and just needs to confirm the account's *current*
+ * password before allowing a new one.
+ */
+export async function verifyCurrentPassword(
+  userId: string,
+  plaintextPassword: string
+): Promise<boolean> {
+  const rows = (await sql`
+    SELECT password_hash FROM users WHERE id = ${userId}
+  `) as UserRow[];
+  if (rows.length === 0 || !rows[0].password_hash) return false;
+  return verifyPassword(plaintextPassword, rows[0].password_hash);
+}
+
+export async function updatePassword(userId: string, plaintextPassword: string): Promise<void> {
+  const passwordHash = await hashPassword(plaintextPassword);
+  await sql`UPDATE users SET password_hash = ${passwordHash} WHERE id = ${userId}`;
+}
