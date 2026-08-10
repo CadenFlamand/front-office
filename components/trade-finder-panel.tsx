@@ -55,7 +55,7 @@ export function TradeFinderPanel({
   const visibleCount = expanded ? Number.POSITIVE_INFINITY : COLLAPSED_SUGGESTIONS;
 
   return (
-    <Card>
+    <Card className="bg-surface-1">
       <CardContent className="flex flex-col gap-4 py-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <Button disabled={rosterId === null || isPending} onClick={findTrades}>
@@ -85,7 +85,7 @@ export function TradeFinderPanel({
         )}
 
         {!isPending && hasRun && suggestions.length === 0 && (
-          <p className="rounded-lg border py-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg bg-surface-2 py-6 text-center text-sm text-muted-foreground">
             No win-win trades available right now. That usually means your roster has
             no clear surplus to trade from, or nobody who needs it has a fair price.
           </p>
@@ -136,7 +136,7 @@ function SearchingState() {
         Checking trades across the league…
       </p>
       {[0, 1].map((key) => (
-        <div className="flex flex-col gap-3 rounded-lg border p-4" key={key}>
+        <div className="flex flex-col gap-3 rounded-lg bg-surface-2 p-4" key={key}>
           <Skeleton className="h-4 w-40" />
           <Skeleton className="h-3 w-full max-w-sm" />
           <div className="grid grid-cols-2 gap-3 pt-1">

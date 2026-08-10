@@ -402,9 +402,9 @@ function TeamHeader({
 }) {
   if (selectedTeam) {
     return (
-      <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+      <div className="flex items-center justify-between rounded-lg bg-surface-2 px-4 py-3">
         <div>
-          <p className="font-medium">{selectedTeam.teamName}</p>
+          <p className="font-medium text-copy-bright">{selectedTeam.teamName}</p>
           <p className="text-sm text-muted-foreground">{selectedTeam.record}</p>
         </div>
         {!isAutoDetected && (
@@ -496,12 +496,14 @@ export function OddsDiffLine({
   return (
     <p className="text-sm text-muted-foreground">
       Playoff odds:{" "}
-      <span className="font-medium tabular-nums text-foreground">
-        {beforePct.toFixed(1)}%
+      <span className="font-medium tabular-nums text-copy-bright">
+        {beforePct.toFixed(1)}
+        <span className="text-brand-gold">%</span>
       </span>{" "}
       →{" "}
       <span className={`font-medium tabular-nums ${toneClass}`}>
-        {afterPct.toFixed(1)}%
+        {afterPct.toFixed(1)}
+        <span className="text-brand-gold">%</span>
       </span>{" "}
       <span className={`tabular-nums ${tone === "neutral" ? "text-muted-foreground" : toneClass}`}>
         ({deltaPct >= 0 ? "+" : ""}
@@ -542,7 +544,7 @@ export function Verdict({
   }
 
   return (
-    <Card>
+    <Card className="bg-surface-1">
       <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Verdict
@@ -553,7 +555,7 @@ export function Verdict({
               ? "text-emerald-600 dark:text-emerald-400"
               : tone === "negative"
                 ? "text-red-600 dark:text-red-400"
-                : "text-foreground"
+                : "text-copy-bright"
           }`}
         >
           {isPending && !verdict && (
@@ -624,11 +626,11 @@ function TradeColumn({
   headerExtra?: ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="bg-surface-1">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{title}</CardTitle>
-          <span className="text-lg font-semibold tabular-nums">
+          <span className="text-lg font-semibold text-copy-bright tabular-nums">
             {total.toLocaleString()}
           </span>
         </div>
@@ -649,16 +651,16 @@ function TradeColumn({
               ? formatNearTermTradeNote(side, sos.nearTerm.tier)
               : undefined;
             return (
-              <div key={id} className="flex flex-col gap-1.5 rounded-lg border px-3 py-2">
+              <div key={id} className="flex flex-col gap-1.5 rounded-lg bg-surface-2 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{player.name}</p>
+                    <p className="truncate text-sm font-medium text-copy-bright">{player.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {player.position} · {player.team ?? "FA"}
                     </p>
                   </div>
                   {sos && <SosTierBadge window={sos.seasonLong} />}
-                  <span className="text-sm font-medium tabular-nums">
+                  <span className="text-sm font-medium text-copy-bright tabular-nums">
                     {player.value.toLocaleString()}
                   </span>
                   <button
@@ -725,7 +727,7 @@ function PartnerPicker({
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-xs text-muted-foreground">
           Trading with{" "}
-          <span className="font-medium text-foreground">{partnerTeam.teamName}</span>
+          <span className="font-medium text-copy-bright">{partnerTeam.teamName}</span>
         </p>
         <button
           className="shrink-0 text-xs font-medium text-primary underline-offset-4 hover:underline"

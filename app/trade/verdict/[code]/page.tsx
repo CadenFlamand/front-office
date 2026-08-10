@@ -168,14 +168,14 @@ export default async function VerdictPage({
 
         <Separator />
 
-        <p className="text-center text-4xl font-bold tracking-tight sm:text-5xl">
+        <p className="text-center text-4xl font-bold tracking-tight text-brand-gold sm:text-5xl">
           {payload.tradeLabel}
         </p>
 
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+          <div className="flex items-center justify-between rounded-lg bg-surface-2 px-4 py-3">
             <div>
-              <p className="font-medium">{team.teamName}</p>
+              <p className="font-medium text-copy-bright">{team.teamName}</p>
               <p className="text-sm text-muted-foreground">{team.record}</p>
             </div>
           </div>
@@ -212,11 +212,13 @@ function PlayerListCard({
   total: number;
 }) {
   return (
-    <Card>
+    <Card className="bg-surface-1">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{title}</CardTitle>
-          <span className="text-lg font-semibold tabular-nums">{total.toLocaleString()}</span>
+          <span className="text-lg font-semibold text-copy-bright tabular-nums">
+            {total.toLocaleString()}
+          </span>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
@@ -226,15 +228,15 @@ function PlayerListCard({
           players.map((player) => (
             <div
               key={player.sleeperId}
-              className="flex items-center gap-2 rounded-lg border px-3 py-2"
+              className="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-2"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{player.name}</p>
+                <p className="truncate text-sm font-medium text-copy-bright">{player.name}</p>
                 <p className="text-xs text-muted-foreground">
                   {player.position} · {player.team ?? "FA"}
                 </p>
               </div>
-              <span className="text-sm font-medium tabular-nums">
+              <span className="text-sm font-medium text-copy-bright tabular-nums">
                 {player.value.toLocaleString()}
               </span>
             </div>
