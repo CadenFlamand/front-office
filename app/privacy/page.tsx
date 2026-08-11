@@ -17,47 +17,73 @@ export default function PrivacyPage() {
           Privacy
         </h1>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-500">
-          Front Office is a small pre-launch beta. Here&apos;s what that means for your data.
+          Front Office is a small, pre-launch beta. Here&apos;s what that means for your data.
         </p>
 
         <div className="mt-10 flex flex-col gap-8 text-zinc-600 dark:text-zinc-400">
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-white">
-              What we collect
+              Accounts
             </h2>
             <p className="mt-2">
-              If you join the beta waitlist, we collect the email address you give us — and,
-              only if you choose to share it, a Sleeper league ID. That&apos;s it. We don&apos;t
-              ask for a password, payment info, or anything else to get on the list.
+              If you create an account, we collect the email address and password you provide.
+              Your password is never stored in plain text — it&apos;s hashed before it touches
+              our database, and we can&apos;t see or recover it. If you forget it, we send a
+              one-time reset link to your email that expires after a short window.
             </p>
           </div>
 
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-white">
-              Why we collect it
+              League data
             </h2>
             <p className="mt-2">
-              Solely to email you when beta access opens up and to share occasional app
-              updates. We don&apos;t sell your email, share it with anyone else, or use it for
-              anything beyond that.
+              The rest of the app — rosters, matchups, standings, playoff odds, and trade
+              values — is pulled live using the league ID you provide, from Sleeper&apos;s and
+              ESPN&apos;s public APIs (for synced leagues) or entered directly by you (for
+              manually-created leagues). Synced league data is publicly available through
+              those platforms already; it&apos;s not personal information we&apos;re
+              collecting about you. Manually-entered league data is visible only to your
+              account.
             </p>
           </div>
 
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-white">
-              Sleeper and FantasyCalc data
+              Player rankings
             </h2>
             <p className="mt-2">
-              The rest of the app — rosters, matchups, playoff odds, trade values — is pulled
-              live from Sleeper&apos;s and FantasyCalc&apos;s public APIs using the league ID
-              you enter. That&apos;s league data those services already make publicly
-              available, not personal information we&apos;re collecting about you.
+              Trade values and rankings shown in the app are blended from FantasyCalc and
+              FantasyPros — public player-valuation data, not anything tied to you personally.
             </p>
           </div>
 
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-white">
-              Questions or want to be removed?
+              Beta feedback and waitlist
+            </h2>
+            <p className="mt-2">
+              If you join the beta waitlist or submit feedback through the app, we collect the
+              email address you give us (and, for feedback, whatever you write). We use this
+              solely to communicate with you about the beta and to improve the product — never
+              sold, never shared with third parties beyond what&apos;s needed to run the app
+              (e.g. our hosting and database providers).
+            </p>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-white">
+              Cookies and sessions
+            </h2>
+            <p className="mt-2">
+              If you&apos;re signed in, we use a secure session cookie to keep you logged in.
+              It doesn&apos;t track you across other sites and isn&apos;t used for advertising.
+            </p>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-white">
+              Questions, or want your data removed?
             </h2>
             <p className="mt-2">
               Email{" "}
