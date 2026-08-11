@@ -1,7 +1,8 @@
 import { neon } from "@neondatabase/serverless";
 
+import { getLeagueData } from "@/lib/league-data";
+import { managerTeamName } from "@/lib/league-types";
 import { getPlayoffOdds } from "@/lib/playoff-odds";
-import { getLeague, getRosters, getTeamName, getUsers } from "@/lib/sleeper";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set");
@@ -34,39 +35,42 @@ export interface CaptureSnapshotResult {
  * team in the league, upserting one row per team into roster_snapshots.
  * Safe to call more than once for the same week — rows are keyed on
  * (league_id, roster_id, season, week) and get replaced, not duplicated.
+ *
+ * Source-agnostic: reads through getLeagueData()/getPlayoffOdds(), so a
+ * validated ESPN public league is snapshotted exactly like a Sleeper one, and
+ * the odds-trend signal built on this history (lib/team-advice.ts) works the
+ * same for both. Starters are stored as Sleeper player IDs either way, which
+ * is what makes the history comparable across sources.
  */
 export async function captureSnapshot(leagueId: string): Promise<CaptureSnapshotResult> {
-  const [league, rosters, users, odds, week] = await Promise.all([
-    getLeague(leagueId),
-    getRosters(leagueId),
-    getUsers(leagueId),
+  const [{ league, rosters, managers }, odds, week] = await Promise.all([
+    getLeagueData(leagueId),
     getPlayoffOdds(leagueId),
     getCurrentWeek(),
   ]);
 
-  const usersById = new Map(users.map((user) => [user.user_id, user]));
+  const managersById = new Map(managers.map((manager) => [manager.ownerId, manager]));
   const oddsByRosterId = new Map(odds.map((o) => [o.rosterId, o.playoffOdds]));
 
   await Promise.all(
     rosters.map((roster) => {
-      const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined;
-      const { wins = 0, losses = 0, ties = 0 } = roster.settings ?? {};
-      const starters = JSON.stringify(roster.starters ?? []);
-      const playoffOdds = oddsByRosterId.get(roster.roster_id) ?? 0;
+      const manager = roster.ownerId ? managersById.get(roster.ownerId) : undefined;
+      const starters = JSON.stringify(roster.starters);
+      const playoffOdds = oddsByRosterId.get(roster.rosterId) ?? 0;
 
       return sql`
         INSERT INTO roster_snapshots
           (league_id, roster_id, team_name, season, week, starters, wins, losses, ties, playoff_odds)
         VALUES (
           ${leagueId},
-          ${roster.roster_id},
-          ${getTeamName(owner)},
+          ${roster.rosterId},
+          ${managerTeamName(manager)},
           ${league.season},
           ${week},
           ${starters}::jsonb,
-          ${wins},
-          ${losses},
-          ${ties},
+          ${roster.wins},
+          ${roster.losses},
+          ${roster.ties},
           ${playoffOdds}
         )
         ON CONFLICT (league_id, roster_id, season, week)

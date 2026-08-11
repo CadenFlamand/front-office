@@ -1,6 +1,7 @@
 "use server";
 
-import { getAllPlayers, getPlayerName, getRosters, type PlayersById } from "./sleeper";
+import { getLeagueData } from "./league-data";
+import { getAllPlayers, getPlayerName, type PlayersById } from "./sleeper";
 
 export interface RosterPlayer {
   playerId: string;
@@ -31,19 +32,19 @@ export async function getTeamRoster(
   leagueId: string,
   rosterId: number
 ): Promise<TeamRoster | null> {
-  const [rosters, allPlayers] = await Promise.all([getRosters(leagueId), getAllPlayers()]);
+  const [{ rosters }, allPlayers] = await Promise.all([
+    getLeagueData(leagueId),
+    getAllPlayers(),
+  ]);
 
-  const roster = rosters.find((r) => r.roster_id === rosterId);
+  const roster = rosters.find((r) => r.rosterId === rosterId);
   if (!roster) return null;
 
-  // Empty starter slots are represented as "0" — same filter convention
-  // already used in lib/trade-odds-action.ts.
-  const starterIds = (roster.starters ?? []).filter((id) => id && id !== "0");
-  const starterIdSet = new Set(starterIds);
-  const benchIds = (roster.players ?? []).filter((id) => !starterIdSet.has(id));
+  const starterIdSet = new Set(roster.starters);
+  const benchIds = roster.players.filter((id) => !starterIdSet.has(id));
 
   return {
-    starters: starterIds.map((id) => resolvePlayer(id, allPlayers)),
+    starters: roster.starters.map((id) => resolvePlayer(id, allPlayers)),
     bench: benchIds.map((id) => resolvePlayer(id, allPlayers)),
   };
 }

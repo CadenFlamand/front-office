@@ -9,6 +9,17 @@ export interface SleeperLeague {
   status: string;
   total_rosters: number;
   roster_positions: string[];
+  // Both of these were already present on this endpoint's response but weren't
+  // declared, so two other modules refetched the same URL through their own
+  // narrower local types to read them (lib/playoff-odds.ts for the playoff
+  // structure, lib/team-context.ts for scoring). Declared here so the
+  // league-source adapter can read everything a league needs from one call.
+  settings: {
+    playoff_teams?: number;
+    playoff_week_start?: number;
+    trade_deadline?: number;
+  } | null;
+  scoring_settings: { rec?: number } | null;
 }
 
 export interface SleeperRosterSettings {

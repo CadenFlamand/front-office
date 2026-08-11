@@ -23,6 +23,14 @@ export function isNotFound(error: unknown): boolean {
   return error instanceof HttpError && error.status === 404;
 }
 
+// True for "this resource exists but you may not see it" — ESPN returns 401
+// for a private league, which is a genuinely different answer from 404 ("no
+// such league") and deserves different copy. Sleeper has no equivalent case;
+// this exists for lib/espn/client.ts.
+export function isUnauthorized(error: unknown): boolean {
+  return error instanceof HttpError && error.status === 401;
+}
+
 // A timeout throws a DOMException ("TimeoutError"); a network failure
 // throws its own TypeError. Neither is an HttpError, so isNotFound() is
 // correctly false for both and callers' catch blocks fall through to their

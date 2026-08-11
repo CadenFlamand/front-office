@@ -10,6 +10,8 @@
     "ingest:baselines": "tsx --env-file=.env.local scripts/ingest-position-baselines.ts",
     "ingest:fantasypros": "tsx --env-file=.env.local scripts/ingest-fantasypros-values.ts",
     "dryrun:trade-finder": "tsx --env-file=.env.local scripts/dry-run-trade-finder.ts",
+    "dryrun:espn": "tsx --env-file=.env.local scripts/dry-run-espn.ts",
+    "dryrun:league": "tsx --env-file=.env.local scripts/dry-run-league.ts",
     "ingest:fantasypros-waiver": "tsx --env-file=.env.local scripts/ingest-fantasypros-waiver.ts"
   },
   "dependencies": {

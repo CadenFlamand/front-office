@@ -1,18 +1,17 @@
 "use server";
 
 import { getPlayerValues, type TradeablePlayer } from "./fantasycalc";
-import { fetchJson } from "./http";
+import { getLeagueData } from "./league-data";
+import { managerTeamName } from "./league-types";
 import { bestLineup, startingSlotsOf } from "./lineup";
 import { isManualLeagueId } from "./manual-league";
 import { buildLeagueSimContext, simulateSeason } from "./playoff-odds";
 import { computeLeagueProductionPace } from "./production-pace";
 import { getCurrentNflWeek, getWeeklyProjectedPoints } from "./projections";
-import { getAllPlayers, getLeague, getRosters, getTeamName, getUsers } from "./sleeper";
+import { getAllPlayers } from "./sleeper";
 import { computeCompositePositionRanks, countStarterSlots } from "./team-context";
 import { findTradeCandidates, type FinderTeam, type TradeCandidate } from "./trade-finder";
 import { assessWinWin, compareAssessed, type WinWinAssessment } from "./win-win";
-
-const SLEEPER_BASE = "https://api.sleeper.app/v1";
 
 // Stage 1 can hand back more than this, but each survivor costs a full
 // ~123ms Monte Carlo run and they're all confirmed inside one request. Twelve
@@ -41,10 +40,6 @@ export interface WinWinSuggestion {
   // Human-readable "QB weak", "RB thin" etc. that this trade clears.
   myClears: string[];
   partnerClears: string[];
-}
-
-interface SleeperLeagueScoring {
-  scoring_settings: { rec?: number } | null;
 }
 
 function toSuggestedPlayers(
@@ -94,26 +89,21 @@ export async function findWinWinTrades(
 ): Promise<WinWinSuggestion[]> {
   if (isManualLeagueId(leagueId)) return [];
 
-  const league = await getLeague(leagueId);
-  const [rosters, users, allPlayers, leagueScoring] = await Promise.all([
-    getRosters(leagueId),
-    getUsers(leagueId),
+  const [{ league, rosters, managers }, allPlayers] = await Promise.all([
+    getLeagueData(leagueId),
     getAllPlayers(),
-    fetchJson<SleeperLeagueScoring>(`${SLEEPER_BASE}/league/${leagueId}`, {
-      next: { revalidate: 3600 },
-    }),
   ]);
 
   const values = await getPlayerValues({
-    totalRosters: league.total_rosters,
-    pprValue: leagueScoring.scoring_settings?.rec,
-    rosterPositions: league.roster_positions,
+    totalRosters: league.totalRosters,
+    pprValue: league.pprValue,
+    rosterPositions: league.rosterPositions,
   });
 
   const playersById = new Map(values.map((player) => [player.sleeperId, player]));
   const compositeRanks = computeCompositePositionRanks(playersById);
-  const requiredStarters = countStarterSlots(league.roster_positions);
-  const startingSlots = startingSlotsOf(league.roster_positions);
+  const requiredStarters = countStarterSlots(league.rosterPositions);
+  const startingSlots = startingSlotsOf(league.rosterPositions);
 
   const positionByPlayerId = new Map<string, string>();
   for (const [id, player] of Object.entries(allPlayers)) {
@@ -126,12 +116,12 @@ export async function findWinWinTrades(
     computeLeagueProductionPace(leagueId, playersById),
   ]);
 
-  const usersById = new Map(users.map((user) => [user.user_id, user]));
+  const managersById = new Map(managers.map((manager) => [manager.ownerId, manager]));
   const teams: FinderTeam[] = rosters.map((roster) => ({
-    rosterId: roster.roster_id,
-    teamName: getTeamName(roster.owner_id ? usersById.get(roster.owner_id) : undefined),
-    valuedPlayerIds: (roster.players ?? []).filter((id) => playersById.has(id)),
-    allPlayerIds: (roster.players ?? []).filter((id) => id && id !== "0"),
+    rosterId: roster.rosterId,
+    teamName: managerTeamName(roster.ownerId ? managersById.get(roster.ownerId) : undefined),
+    valuedPlayerIds: roster.players.filter((id) => playersById.has(id)),
+    allPlayerIds: roster.players,
   }));
 
   const me = teams.find((team) => team.rosterId === rosterId);
@@ -146,7 +136,7 @@ export async function findWinWinTrades(
     compositeRanks,
     startingSlots,
     requiredStarters,
-    totalRosters: league.total_rosters,
+    totalRosters: league.totalRosters,
     leaguePace,
     limit: MAX_SIMULATED_CANDIDATES,
   });

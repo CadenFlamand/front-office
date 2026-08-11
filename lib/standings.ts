@@ -1,41 +1,35 @@
-import type { SleeperRoster } from "./sleeper";
+import type { LeagueRoster } from "./league-types";
 
 export interface StandingsRank {
   recordRank: number;
   pfRank: number;
 }
 
-function winPct(roster: SleeperRoster): number {
-  const { wins = 0, losses = 0, ties = 0 } = roster.settings ?? {};
-  const games = wins + losses + ties;
-  return games > 0 ? (wins + 0.5 * ties) / games : 0;
+function winPct(roster: LeagueRoster): number {
+  const games = roster.wins + roster.losses + roster.ties;
+  return games > 0 ? (roster.wins + 0.5 * roster.ties) / games : 0;
 }
 
-function pointsFor(roster: SleeperRoster): number {
-  const { fpts = 0, fpts_decimal = 0 } = roster.settings ?? {};
-  return fpts + fpts_decimal / 100;
-}
-
-// Ranks 1 = best. Ties break toward points-for (record rank) or roster_id
+// Ranks 1 = best. Ties break toward points-for (record rank) or rosterId
 // (points-for rank) so the result is deterministic across calls — same
 // tiebreak spirit as lib/playoff-odds.ts's simulated standings sort.
-export function computeStandingsRanks(rosters: SleeperRoster[]): Map<number, StandingsRank> {
+export function computeStandingsRanks(rosters: LeagueRoster[]): Map<number, StandingsRank> {
   const byRecord = [...rosters].sort(
-    (a, b) => winPct(b) - winPct(a) || pointsFor(b) - pointsFor(a) || a.roster_id - b.roster_id
+    (a, b) => winPct(b) - winPct(a) || b.pointsFor - a.pointsFor || a.rosterId - b.rosterId
   );
   const byPoints = [...rosters].sort(
-    (a, b) => pointsFor(b) - pointsFor(a) || a.roster_id - b.roster_id
+    (a, b) => b.pointsFor - a.pointsFor || a.rosterId - b.rosterId
   );
 
-  const recordRankById = new Map(byRecord.map((roster, i) => [roster.roster_id, i + 1]));
-  const pfRankById = new Map(byPoints.map((roster, i) => [roster.roster_id, i + 1]));
+  const recordRankById = new Map(byRecord.map((roster, i) => [roster.rosterId, i + 1]));
+  const pfRankById = new Map(byPoints.map((roster, i) => [roster.rosterId, i + 1]));
 
   return new Map(
     rosters.map((roster) => [
-      roster.roster_id,
+      roster.rosterId,
       {
-        recordRank: recordRankById.get(roster.roster_id) ?? rosters.length,
-        pfRank: pfRankById.get(roster.roster_id) ?? rosters.length,
+        recordRank: recordRankById.get(roster.rosterId) ?? rosters.length,
+        pfRank: pfRankById.get(roster.rosterId) ?? rosters.length,
       },
     ])
   );

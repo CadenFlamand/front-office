@@ -4,15 +4,9 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { OddsDiffLine, TeamContextLine, Verdict } from "@/app/[leagueId]/trade/trade-analyzer";
-import {
-  getAllPlayers,
-  getPlayerName,
-  getRecord,
-  getRosters,
-  getTeamName,
-  getUsers,
-  type PlayersById,
-} from "@/lib/sleeper";
+import { getLeagueData } from "@/lib/league-data";
+import { formatRecord, managerDisplayName, managerTeamName } from "@/lib/league-types";
+import { getAllPlayers, getPlayerName, type PlayersById } from "@/lib/sleeper";
 import type { TeamContext } from "@/lib/team-context";
 import { decodeVerdict, type TradeSidePlayer, type VerdictPayload } from "@/lib/verdict-share";
 
@@ -71,15 +65,16 @@ export async function loadVerdictView(code: string): Promise<VerdictView | null>
   const payload = decodeVerdict(code);
   if (!payload) return null;
 
-  const [rosters, users, allPlayers] = await Promise.all([
-    getRosters(payload.leagueId),
-    getUsers(payload.leagueId),
+  const [{ rosters, managers }, allPlayers] = await Promise.all([
+    getLeagueData(payload.leagueId),
     getAllPlayers(),
   ]);
 
-  const roster = rosters.find((r) => r.roster_id === payload.rosterId);
+  const roster = rosters.find((r) => r.rosterId === payload.rosterId);
   if (!roster) return null;
-  const owner = roster.owner_id ? users.find((u) => u.user_id === roster.owner_id) : undefined;
+  const manager = roster.ownerId
+    ? managers.find((m) => m.ownerId === roster.ownerId)
+    : undefined;
 
   const givePlayers = resolveDisplayPlayers(payload.give, allPlayers);
   const receivePlayers = resolveDisplayPlayers(payload.receive, allPlayers);
@@ -87,9 +82,9 @@ export async function loadVerdictView(code: string): Promise<VerdictView | null>
 
   const team: TeamContext = {
     rosterId: payload.rosterId,
-    teamName: getTeamName(owner),
-    ownerName: owner?.display_name ?? "Unassigned",
-    record: getRecord(roster),
+    teamName: managerTeamName(manager),
+    ownerName: managerDisplayName(manager),
+    record: formatRecord(roster),
     bucket: payload.team.bucket,
     thinPositions: payload.team.thinPositions,
     // Only TeamContextLine reads this reconstructed TeamContext, which never

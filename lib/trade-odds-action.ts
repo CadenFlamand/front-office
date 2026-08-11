@@ -5,9 +5,10 @@ import {
   startingSlotsOf,
   type LineupCandidate,
 } from "./lineup";
+import { getLeagueData } from "./league-data";
 import { getPlayoffOdds } from "./playoff-odds";
 import { getCurrentNflWeek, getWeeklyProjectedPoints } from "./projections";
-import { getAllPlayers, getLeague, getRosters } from "./sleeper";
+import { getAllPlayers } from "./sleeper";
 
 export interface TradeOddsDiff {
   before: number;
@@ -49,17 +50,14 @@ export async function getOddsForTrade(
   giveIds: string[],
   receiveIds: string[]
 ): Promise<TradeOddsDiff | null> {
-  const [rosters, league] = await Promise.all([
-    getRosters(leagueId),
-    getLeague(leagueId),
-  ]);
-  const roster = rosters.find((r) => r.roster_id === rosterId);
+  const { league, rosters } = await getLeagueData(leagueId);
+  const roster = rosters.find((r) => r.rosterId === rosterId);
   if (!roster) return null;
 
-  const startingSlots = startingSlotsOf(league.roster_positions);
+  const startingSlots = startingSlotsOf(league.rosterPositions);
 
   const giveSet = new Set(giveIds);
-  const currentRosterIds = (roster.players ?? []).filter((id) => id && id !== "0");
+  const currentRosterIds = roster.players;
   const postTradeRosterIds = [
     ...currentRosterIds.filter((id) => !giveSet.has(id)),
     ...receiveIds,

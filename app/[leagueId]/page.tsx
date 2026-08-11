@@ -11,16 +11,9 @@ import {
   getManualBucket,
   isManualLeagueId,
 } from "@/lib/manual-league";
+import { getLeagueData } from "@/lib/league-data";
+import { formatRecord, managerDisplayName, managerTeamName } from "@/lib/league-types";
 import { getPlayoffOdds } from "@/lib/playoff-odds";
-import {
-  getAvatarUrl,
-  getPointsAgainst,
-  getPointsFor,
-  getRecord,
-  getRosters,
-  getTeamName,
-  getUsers,
-} from "@/lib/sleeper";
 import { computeStandingsRanks } from "@/lib/standings";
 import { getPlayoffBucket } from "@/lib/team-context";
 
@@ -64,34 +57,34 @@ export default async function TeamPickerPage({
     });
   }
 
-  let rosters, users, playoffOdds;
+  let leagueData, playoffOdds;
   try {
-    [rosters, users, playoffOdds] = await Promise.all([
-      getRosters(leagueId),
-      getUsers(leagueId),
+    [leagueData, playoffOdds] = await Promise.all([
+      getLeagueData(leagueId),
       getPlayoffOdds(leagueId),
     ]);
   } catch (error) {
     if (isNotFound(error)) notFound();
     throw error;
   }
-  const usersById = new Map(users.map((user) => [user.user_id, user]));
+  const { rosters, managers } = leagueData;
+  const managersById = new Map(managers.map((manager) => [manager.ownerId, manager]));
   const oddsByRosterId = new Map(playoffOdds.map((o) => [o.rosterId, o.playoffOdds]));
   const ranksByRosterId = computeStandingsRanks(rosters);
 
   const teams: TeamSummary[] = rosters
     .map((roster) => {
-      const owner = roster.owner_id ? usersById.get(roster.owner_id) : undefined;
-      const odds = oddsByRosterId.get(roster.roster_id) ?? 0;
-      const ranks = ranksByRosterId.get(roster.roster_id);
+      const manager = roster.ownerId ? managersById.get(roster.ownerId) : undefined;
+      const odds = oddsByRosterId.get(roster.rosterId) ?? 0;
+      const ranks = ranksByRosterId.get(roster.rosterId);
       return {
-        rosterId: roster.roster_id,
-        teamName: getTeamName(owner),
-        ownerName: owner?.display_name ?? "Unassigned",
-        avatarUrl: getAvatarUrl(owner?.avatar ?? null),
-        record: getRecord(roster),
-        pointsFor: getPointsFor(roster),
-        pointsAgainst: getPointsAgainst(roster),
+        rosterId: roster.rosterId,
+        teamName: managerTeamName(manager),
+        ownerName: managerDisplayName(manager),
+        avatarUrl: manager?.avatarUrl,
+        record: formatRecord(roster),
+        pointsFor: roster.pointsFor,
+        pointsAgainst: roster.pointsAgainst,
         playoffOdds: odds,
         bucket: getPlayoffBucket(odds),
         recordRank: ranks?.recordRank ?? rosters.length,

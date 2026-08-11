@@ -1,26 +1,15 @@
+import { isEspnLeagueId } from "./espn-league";
 import type { TradeablePlayer } from "./fantasycalc";
 import { fetchJson } from "./http";
+import { getLeagueData } from "./league-data";
 import { getPositionBaseline, pprValueToFormat, type BaselineTier } from "./position-baselines";
-import { getLeague } from "./sleeper";
 import { countStarterSlots } from "./team-context";
 
-// Duplicated rather than imported — same "each module fetches independently"
-// convention as lib/team-context.ts's getLeagueScoring() and every other
-// module that needs one extra field off the league endpoint.
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
 const NFL_STATE_URL = `${SLEEPER_BASE}/state/nfl`;
 
-interface SleeperLeagueDetail {
-  settings: { playoff_week_start?: number } | null;
-  scoring_settings: { rec?: number } | null;
-}
-
 interface SleeperMatchup {
   players_points: Record<string, number> | null;
-}
-
-function getLeagueDetail(leagueId: string): Promise<SleeperLeagueDetail> {
-  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`, { next: { revalidate: 3600 } });
 }
 
 function getMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> {
@@ -104,9 +93,8 @@ export async function computeLeagueProductionPace(
   leagueId: string,
   valuesById: Map<string, TradeablePlayer>
 ): Promise<LeagueProductionPace> {
-  const [league, leagueDetail, currentWeek] = await Promise.all([
-    getLeague(leagueId),
-    getLeagueDetail(leagueId),
+  const [{ league }, currentWeek] = await Promise.all([
+    getLeagueData(leagueId),
     getCurrentWeek(),
   ]);
 
@@ -118,12 +106,27 @@ export async function computeLeagueProductionPace(
   };
   if (completedWeeks < MIN_COMPLETED_WEEKS_FOR_PACE) return empty;
 
+  // ESPN gap, deliberately not faked. This function needs per-player,
+  // per-week actual scoring for the whole league, which on the Sleeper side
+  // comes free with the matchup payloads already being fetched. ESPN exposes
+  // the equivalent only through a separate per-week boxscore request
+  // (?scoringPeriodId=N&view=mBoxscore), i.e. up to 14 more calls against an
+  // unofficial API — out of scope for Phase 1.
+  //
+  // Returning empty degrades cleanly rather than wrongly: production pace only
+  // ever *corroborates* the weak-position flags (see
+  // computeWeakPositionFlags's backedByProduction), so ESPN leagues get the
+  // full composite-rank-driven weak/thin signal and simply no production
+  // second opinion. Faking it with projections instead of actuals would make
+  // the corroboration meaningless while looking like it worked.
+  if (isEspnLeagueId(leagueId)) return empty;
+
   const regularSeasonWeeks =
-    leagueDetail.settings?.playoff_week_start && leagueDetail.settings.playoff_week_start > 1
-      ? leagueDetail.settings.playoff_week_start - 1
+    league.playoffWeekStart > 1
+      ? league.playoffWeekStart - 1
       : FALLBACK_REGULAR_SEASON_WEEKS;
-  const format = pprValueToFormat(leagueDetail.scoring_settings?.rec);
-  const requiredStarters = countStarterSlots(league.roster_positions);
+  const format = pprValueToFormat(league.pprValue);
+  const requiredStarters = countStarterSlots(league.rosterPositions);
 
   const weeklyMatchups = await Promise.all(
     Array.from({ length: completedWeeks }, (_, i) => getMatchups(leagueId, i + 1))
@@ -146,7 +149,7 @@ export async function computeLeagueProductionPace(
   for (const position of STARTER_POSITIONS) {
     const threshold = requiredStarters[position];
     if (!threshold) continue;
-    const tier = nearestTier(threshold * league.total_rosters);
+    const tier = nearestTier(threshold * league.totalRosters);
     const baseline = await getPositionBaseline(position, format, tier, { seasons: 3 });
     // A non-positive threshold would mean broken ingested data, not a bar
     // every player clears — treated as "can't speak to this position", same

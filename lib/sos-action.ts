@@ -2,42 +2,30 @@
 
 import { getDefenseRankings } from "./defense-rankings";
 import { getPlayerValues } from "./fantasycalc";
-import { fetchJson } from "./http";
+import { getLeagueData } from "./league-data";
+import type { LeagueInfo } from "./league-types";
 import { isManualLeagueId } from "./manual-league";
 import { getTeamOpponents } from "./nfl-schedule";
-import { getLeague, getRosters } from "./sleeper";
 import { computePlayerSos, NEAR_TERM_WINDOW_WEEKS, type PlayerSos } from "./sos";
 
 const SLEEPER_BASE = "https://api.sleeper.app/v1";
 const NFL_STATE_URL = `${SLEEPER_BASE}/state/nfl`;
 
-// Duplicated per this codebase's established per-module independence
-// convention (see the identical comment on lib/team-context.ts's own copy).
-interface SleeperLeagueScoring {
-  scoring_settings: { rec?: number } | null;
-}
-function getLeagueScoring(leagueId: string): Promise<SleeperLeagueScoring> {
-  return fetchJson(`${SLEEPER_BASE}/league/${leagueId}`, { next: { revalidate: 3600 } });
-}
-
-// Sleeper doesn't set this for every league; fall back to a common default
-// rather than leaving the season-long window open-ended — same fallback
-// pattern as lib/team-advice-action.ts's DEFAULT_TRADE_DEADLINE_WEEK.
+// A league that doesn't express a playoff start gets a common default rather
+// than a season-long window left open-ended — same fallback pattern as
+// lib/team-advice-action.ts's DEFAULT_TRADE_DEADLINE_WEEK.
 const PLAYOFF_WEEKS_LENGTH = 3;
 const DEFAULT_PLAYOFF_END_WEEK = 17;
+const LAST_NFL_REGULAR_SEASON_WEEK = 17;
 
-interface SleeperLeagueSettings {
-  settings: { playoff_week_start?: number } | null;
-}
-
-async function getPlayoffEndWeek(leagueId: string): Promise<number> {
-  const league = await fetchJson<SleeperLeagueSettings>(
-    `${SLEEPER_BASE}/league/${leagueId}`,
-    { next: { revalidate: 3600 } }
-  );
-  const start = league.settings?.playoff_week_start;
-  return start && start > 0
-    ? Math.min(start + PLAYOFF_WEEKS_LENGTH - 1, 17)
+// LeagueInfo.playoffWeekStart already carries the source's default when a
+// league doesn't configure one (week 19, i.e. "no playoffs inside the regular
+// season"), which would push the SOS window past the end of the NFL season —
+// so that case falls back here the same way an unset value always did.
+function playoffEndWeek(league: LeagueInfo): number {
+  const start = league.playoffWeekStart;
+  return start > 0 && start <= LAST_NFL_REGULAR_SEASON_WEEK
+    ? Math.min(start + PLAYOFF_WEEKS_LENGTH - 1, LAST_NFL_REGULAR_SEASON_WEEK)
     : DEFAULT_PLAYOFF_END_WEEK;
 }
 
@@ -155,29 +143,24 @@ export async function getTeamSos(leagueId: string, rosterId: number): Promise<Pl
   // that would 404 against a synthetic ID, in case that changes later.
   if (isManualLeagueId(leagueId)) return [];
 
-  const [league, leagueScoring, rosters, { week: currentWeek }, playoffEndWeek] =
-    await Promise.all([
-      getLeague(leagueId),
-      getLeagueScoring(leagueId),
-      getRosters(leagueId),
-      getSeasonState(),
-      getPlayoffEndWeek(leagueId),
-    ]);
+  const [{ league, rosters }, { week: currentWeek }] = await Promise.all([
+    getLeagueData(leagueId),
+    getSeasonState(),
+  ]);
 
-  const roster = rosters.find((r) => r.roster_id === rosterId);
+  const roster = rosters.find((r) => r.rosterId === rosterId);
   if (!roster) return [];
 
   const values = await getPlayerValues({
-    totalRosters: league.total_rosters,
-    pprValue: leagueScoring.scoring_settings?.rec,
-    rosterPositions: league.roster_positions,
+    totalRosters: league.totalRosters,
+    pprValue: league.pprValue,
+    rosterPositions: league.rosterPositions,
   });
   const valuesById = new Map(values.map((player) => [player.sleeperId, player]));
 
-  const starterIds = (roster.starters ?? []).filter((id) => id && id !== "0");
   // No FantasyCalc value = not a real skill-position starter (e.g. K/DEF) —
   // same "no value = not real" convention lib/team-context.ts already uses.
-  const starters = starterIds.flatMap((id) => {
+  const starters = roster.starters.flatMap((id) => {
     const player = valuesById.get(id);
     return player ? [player] : [];
   });
@@ -185,8 +168,8 @@ export async function getTeamSos(leagueId: string, rosterId: number): Promise<Pl
   const sosByPlayer = await computeSosForPlayers(
     league.season,
     currentWeek,
-    playoffEndWeek,
-    leagueScoring.scoring_settings?.rec,
+    playoffEndWeek(league),
+    league.pprValue,
     starters.map((player) => ({
       sleeperId: player.sleeperId,
       position: player.position,
@@ -223,18 +206,16 @@ export async function getTradeSos(
     return computeSosForPlayers(season, currentWeek, DEFAULT_PLAYOFF_END_WEEK, 1, players);
   }
 
-  const [league, leagueScoring, { week: currentWeek }, playoffEndWeek] = await Promise.all([
-    getLeague(leagueId),
-    getLeagueScoring(leagueId),
+  const [{ league }, { week: currentWeek }] = await Promise.all([
+    getLeagueData(leagueId),
     getSeasonState(),
-    getPlayoffEndWeek(leagueId),
   ]);
 
   return computeSosForPlayers(
     league.season,
     currentWeek,
-    playoffEndWeek,
-    leagueScoring.scoring_settings?.rec,
+    playoffEndWeek(league),
+    league.pprValue,
     players
   );
 }

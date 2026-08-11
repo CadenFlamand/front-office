@@ -1,8 +1,8 @@
 "use server";
 
 import { getWaiverValues } from "./fantasypros-waiver-values";
+import { getLeagueData } from "./league-data";
 import { isManualLeagueId } from "./manual-league";
-import { getRosters } from "./sleeper";
 import { getTeamContexts } from "./team-context";
 import { computeWaiverRecommendations, type WaiverRecommendations } from "./waiver-recommendations";
 
@@ -23,18 +23,16 @@ export async function getWaiverRecommendations(
 ): Promise<WaiverRecommendations | null> {
   if (isManualLeagueId(leagueId)) return null;
 
-  const [waiverValues, rosters, { teams }] = await Promise.all([
+  const [waiverValues, { rosters }, { teams }] = await Promise.all([
     getWaiverValues(),
-    getRosters(leagueId),
+    getLeagueData(leagueId),
     getTeamContexts(leagueId),
   ]);
 
   const team = teams.find((t) => t.rosterId === rosterId);
   if (!team) return null;
 
-  const allRosteredPlayerIds = new Set(
-    rosters.flatMap((roster) => (roster.players ?? []).filter((id) => id && id !== "0"))
-  );
+  const allRosteredPlayerIds = new Set(rosters.flatMap((roster) => roster.players));
 
   return computeWaiverRecommendations(
     waiverValues,
