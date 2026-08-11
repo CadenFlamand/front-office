@@ -197,11 +197,11 @@ export default function Home() {
               <CardContent className="flex flex-col gap-2">
                 <Share2 className="size-5 text-muted-foreground" />
                 <h3 className="font-semibold tracking-tight">
-                  Built for the group chat
+                  Share what&apos;s fair
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Turn any trade into a shareable verdict card — value, odds
-                  swing, and verdict, ready to drop in your league&apos;s chat.
+                  Ability to show your leaguemates how our trades help both sides
+                  succeed (unless your fleecing them)
                 </p>
               </CardContent>
             </Card>
