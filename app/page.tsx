@@ -88,7 +88,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Don't be this guy — deliberately dark/gold regardless of theme,
+      {/* "No one wants to be last" — deliberately dark/gold regardless of theme,
           the first beat after the hero: stakes/humor before we explain why
           the product works. Clips are muted/looped/autoplaying (see
           punishment-1/2.mov -> .mp4/.webm conversion in public/videos/),
@@ -111,7 +111,7 @@ export default function Home() {
 
           <div className="flex flex-col items-center gap-4 text-center">
             <h2 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-              Don&apos;t be this guy.
+              No one wants to be last
             </h2>
             <Button
               size="lg"
