@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { OddsTrendSparkline } from "@/components/odds-trend-sparkline";
 import { TeamDashboard, type TeamSummary } from "@/components/team-dashboard";
 import { Separator } from "@/components/ui/separator";
 import { requireManualLeagueAccess } from "@/lib/auth/dal";
@@ -98,6 +99,11 @@ export default async function TeamPickerPage({
     subtitle: "Your fantasy football command center.",
     teams,
     leagueId,
+    // Manual leagues have no playoff-odds/snapshot data to trend at all
+    // (never written to tracked_leagues) — omitting the panel entirely
+    // rather than handing it a leagueId it can only ever show an empty
+    // state for.
+    sidePanel: <OddsTrendSparkline leagueId={leagueId} />,
   });
 }
 
@@ -106,23 +112,31 @@ function renderDashboardShell({
   subtitle,
   teams,
   leagueId,
+  sidePanel,
 }: {
   heading: string;
   subtitle: string;
   teams: TeamSummary[];
   leagueId: string;
+  sidePanel?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
-      <div className="flex w-full max-w-2xl flex-col gap-8">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>
-          <p className="text-zinc-600 dark:text-zinc-400">{subtitle}</p>
+      <div className="flex w-full max-w-2xl flex-col gap-8 lg:w-auto lg:max-w-none lg:flex-row lg:items-start lg:justify-center lg:gap-10">
+        <div className="flex flex-col gap-8 lg:w-full lg:max-w-2xl">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>
+            <p className="text-zinc-600 dark:text-zinc-400">{subtitle}</p>
+          </div>
+
+          <Separator />
+
+          <TeamDashboard teams={teams} leagueId={leagueId} />
         </div>
 
-        <Separator />
-
-        <TeamDashboard teams={teams} leagueId={leagueId} />
+        {sidePanel && (
+          <aside className="hidden w-80 shrink-0 lg:block">{sidePanel}</aside>
+        )}
       </div>
     </div>
   );

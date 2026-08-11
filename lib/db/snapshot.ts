@@ -116,3 +116,59 @@ export async function getRecentOddsHistory(
     .map((row) => ({ week: row.week as number, playoffOdds: row.playoff_odds as number }))
     .reverse();
 }
+
+export interface OddsMover {
+  rosterId: number;
+  priorWeek: number;
+  latestWeek: number;
+  priorOdds: number;
+  latestOdds: number;
+  delta: number;
+}
+
+/**
+ * The league's biggest week-over-week playoff-odds swings, ranked by
+ * magnitude regardless of direction — powers the odds page's "Biggest
+ * Movers" panel. Team names deliberately aren't returned here: the caller
+ * (app/[leagueId]/odds/page.tsx) already has a fresher source for those
+ * (getPlayoffOdds()'s live result), so this stays scoped to what only the
+ * snapshot table can answer — the historical numbers.
+ *
+ * The INNER JOIN against each roster's own second-most-recent week is the
+ * entire "not enough history" handling: a roster with only one snapshot (or
+ * none) has no rn=2 row to join against, so it's silently excluded rather
+ * than needing a separate branch — the empty-array case (fewer than two
+ * distinct weeks league-wide) is just what falls out when nothing joins.
+ */
+export async function getWeekOverWeekOddsMovers(
+  leagueId: string,
+  limit = 5
+): Promise<OddsMover[]> {
+  const rows = await sql`
+    WITH ranked AS (
+      SELECT roster_id, week, playoff_odds,
+             ROW_NUMBER() OVER (PARTITION BY roster_id ORDER BY week DESC) AS rn
+      FROM roster_snapshots
+      WHERE league_id = ${leagueId}
+    )
+    SELECT
+      latest.roster_id,
+      latest.week AS latest_week,
+      latest.playoff_odds AS latest_odds,
+      prior.week AS prior_week,
+      prior.playoff_odds AS prior_odds
+    FROM ranked latest
+    JOIN ranked prior ON prior.roster_id = latest.roster_id AND prior.rn = 2
+    WHERE latest.rn = 1
+    ORDER BY abs(latest.playoff_odds - prior.playoff_odds) DESC
+    LIMIT ${limit}
+  `;
+  return rows.map((row) => ({
+    rosterId: row.roster_id as number,
+    priorWeek: row.prior_week as number,
+    latestWeek: row.latest_week as number,
+    priorOdds: row.prior_odds as number,
+    latestOdds: row.latest_odds as number,
+    delta: (row.latest_odds as number) - (row.prior_odds as number),
+  }));
+}
