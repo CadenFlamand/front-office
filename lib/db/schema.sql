@@ -222,3 +222,32 @@ CREATE TABLE IF NOT EXISTS fantasypros_waiver_values (
   waiver_rank INTEGER NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Forgot-password tokens. A separate table rather than a column on users,
+-- matching this schema's existing preference for join/child tables (see
+-- user_leagues, beta_feedback): a user can have more than one pending
+-- request live at once (clicks "forgot password" twice, opens an older
+-- email first), which one column can't represent cleanly.
+--
+-- token_hash stores sha256(token), never the raw token — the same
+-- "don't store the secret itself" instinct as users.password_hash, but a
+-- fast hash rather than bcrypt is the right tool here: bcrypt's cost factor
+-- defends against *guessing* a low-entropy human password, and a 256-bit
+-- random token is already unguessable, so the only property that matters is
+-- "a DB leak doesn't hand out live tokens" — sha256 covers that and lets
+-- the lookup use a plain unique index instead of scanning + bcrypt-
+-- comparing every row.
+--
+-- used_at IS NULL + expires_at together give single-use and expiry with no
+-- separate boolean; lib/db/password-reset.ts's redeemResetToken() flips
+-- used_at from NULL to now() in one atomic UPDATE...RETURNING, the same
+-- race-free idiom lib/db/users.ts's createUser() already uses via
+-- ON CONFLICT DO NOTHING RETURNING.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id         BIGSERIAL PRIMARY KEY,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
