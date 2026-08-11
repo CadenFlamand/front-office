@@ -37,6 +37,21 @@ export async function getUserById(id: string): Promise<User | null> {
   return rows.length > 0 ? toUser(rows[0]) : null;
 }
 
+/**
+ * For the forgot-password flow: existence lookup only, no password
+ * involved. Unlike verifyCredentials(), this deliberately does *not* try to
+ * hide via timing whether an email is registered — that anti-enumeration
+ * work happens one layer up, in requestPasswordReset(), which controls
+ * whether an email actually gets sent and always returns the same response
+ * either way.
+ */
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const rows = (await sql`
+    SELECT id, email, plan FROM users WHERE email = ${normalizeEmail(email)}
+  `) as UserRow[];
+  return rows.length > 0 ? toUser(rows[0]) : null;
+}
+
 export type CreateUserResult =
   | { ok: true; user: User }
   | { ok: false; error: "email-taken" };

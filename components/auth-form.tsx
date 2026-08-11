@@ -60,7 +60,17 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
       </label>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Password</span>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Password</span>
+          {!isSignUp && (
+            <Link
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              href="/forgot-password"
+            >
+              Forgot password?
+            </Link>
+          )}
+        </div>
         <input
           autoComplete={isSignUp ? "new-password" : "current-password"}
           className="h-11 w-full rounded-lg border bg-background px-3 text-sm shadow-xs outline-none transition placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"

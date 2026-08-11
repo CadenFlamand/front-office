@@ -16,6 +16,23 @@ const BCRYPT_COST = 12;
 // The modules that read cookies or hold a DB connection are the ones that
 // carry the guard.
 
+// Low enough not to annoy, high enough to rule out trivially guessable
+// passwords. Deliberately no composition rules (symbols/digits/case), which
+// research consistently finds push users toward predictable patterns.
+const MIN_PASSWORD_LENGTH = 8;
+
+// Shared by every path that sets a password to a *new* value — sign-up,
+// change-password, and reset-password (lib/auth/actions.ts) — so the one
+// rule lives in one place. Lives here rather than in actions.ts itself
+// because every export of a "use server" file must be an async server
+// action; this is a plain sync validator, not one.
+export function validateNewPassword(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  return null;
+}
+
 export function hashPassword(plaintext: string): Promise<string> {
   return bcrypt.hash(plaintext, BCRYPT_COST);
 }
