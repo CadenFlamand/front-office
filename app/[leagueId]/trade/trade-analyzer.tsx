@@ -573,6 +573,14 @@ export function Verdict({
         {verdict && (
           <p className="text-sm text-muted-foreground">{verdict.valueCaption}</p>
         )}
+        {verdict && verdict.showValueOddsMismatch && (
+          <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+            Big value gap, small odds impact? That&apos;s not a bug. Trade value reflects
+            long-term worth, but playoff odds compare against your best realistic
+            replacement at that spot — if what you already had there was good enough,
+            swapping in someone worth more won&apos;t move the needle much this season.
+          </p>
+        )}
         {verdict && verdict.cautions.length > 0 && (
           <div className="mt-2 flex flex-col gap-1">
             {verdict.cautions.map((caution, index) => (

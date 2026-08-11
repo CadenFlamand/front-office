@@ -66,5 +66,10 @@ export function computeManualTradeVerdict({
     "No playoff-odds simulation for manual leagues — this verdict is based on trade value alone."
   );
 
-  return { headline, tone, helps, valueCaption, cautions };
+  // Always false here: manual leagues have no real odds simulation, so
+  // `tone` above is value-driven (classifyValueDelta), not odds-driven —
+  // "neutral" means "value was roughly even," not "odds didn't move." The
+  // value/odds-mismatch explainer's copy assumes a real playoff-odds
+  // comparison exists, which it doesn't for this path.
+  return { headline, tone, helps, valueCaption, cautions, showValueOddsMismatch: false };
 }

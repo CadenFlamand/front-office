@@ -14,6 +14,13 @@ export interface TradeVerdict {
   helps: boolean;
   valueCaption: string;
   cautions: string[];
+  // Whether to show the "big value gap, small odds impact" explainer — a
+  // real trade shape (see showValueOddsMismatch below), not an error state,
+  // so it's a plain boolean rather than living in `cautions` (which reads as
+  // a warning; this is reassuring context, not a red flag). Always false
+  // from computeManualTradeVerdict() — manual leagues have no real odds
+  // simulation, so `tone` there means something else entirely (see below).
+  showValueOddsMismatch: boolean;
 }
 
 export interface TradeVerdictInput {
@@ -31,6 +38,15 @@ export interface TradeVerdictInput {
 // Exported for lib/win-win.ts, which needs the same "is this swing real or
 // is it simulation noise" bar rather than defining a second one.
 export const NEAR_ZERO_ODDS_DELTA = 0.01; // 1 percentage point
+
+// Deliberately separate from (and lower than) trade-label.ts's
+// LARGE_VALUE_DIFF_THRESHOLD (4000), which stays unchanged and keeps driving
+// the "Blockbuster Deal" label and the existing value-gap caution. This is a
+// distinct product decision: a value swing doesn't need to be "Blockbuster"-
+// sized before it's worth explaining why the odds barely moved — a mid-size
+// swing with a near-zero odds impact is just as confusing to read at a
+// glance, so this bar is set lower on purpose, not fit to any one example.
+export const VALUE_ODDS_MISMATCH_THRESHOLD = 1500;
 
 function classifyOddsDelta(oddsDelta: number): VerdictTone {
   if (oddsDelta > NEAR_ZERO_ODDS_DELTA) return "positive";
@@ -126,6 +142,15 @@ export function computeTradeVerdict({
         ? `Market value (FantasyCalc + FantasyPros combined): you lose ${Math.abs(diff).toLocaleString()} in trade value`
         : "Market value (FantasyCalc + FantasyPros combined): dead even";
 
+  // Reuses `tone` rather than re-deriving "was the odds swing near zero"
+  // from `oddsDelta` directly — tone is already exactly that check (see
+  // classifyOddsDelta above), so this can never drift out of sync with what
+  // the headline itself displays as "neutral." Math.abs() catches both
+  // directions: gaining a lot of paper value with no real odds movement is
+  // just as worth explaining as losing it.
+  const showValueOddsMismatch =
+    tone === "neutral" && Math.abs(diff) >= VALUE_ODDS_MISMATCH_THRESHOLD;
+
   const cautions: string[] = [];
 
   // Value-gap caution: giving up notably more trade value than you're
@@ -154,5 +179,5 @@ export function computeTradeVerdict({
     );
   }
 
-  return { headline, tone, helps, valueCaption, cautions };
+  return { headline, tone, helps, valueCaption, cautions, showValueOddsMismatch };
 }
