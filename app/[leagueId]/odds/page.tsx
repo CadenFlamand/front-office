@@ -63,14 +63,13 @@ export default async function OddsPage({
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
-      {/* See app/[leagueId]/page.tsx's identical grid for why this is a
-          grid, not a flex row, and why the reveal breakpoint is the exact
-          custom value 1440px rather than a stock xl:/2xl: — that's the
-          smallest width where both flanking 1fr tracks are provably at
-          least as wide as the aside on their own, which is what the
-          "main column stays exactly centered" guarantee depends on. */}
-      <div className="grid w-full grid-cols-1 gap-8 min-[1440px]:grid-cols-[1fr_minmax(0,42rem)_1fr] min-[1440px]:items-start min-[1440px]:gap-10">
-        <div className="flex max-w-2xl flex-col gap-8 min-[1440px]:col-start-2">
+      {/* See app/[leagueId]/page.tsx's identical row for why this is a
+          shrink-wrapped (w-fit) flex row centered by the parent's
+          items-center, rather than pinning main to its old solo-centered
+          position — that put the aside's width entirely on one side and
+          dragged the visual center off-axis. */}
+      <div className="flex w-full flex-col gap-8 xl:w-fit xl:flex-row xl:items-start xl:gap-10">
+        <div className="flex w-full max-w-2xl flex-col gap-8 xl:w-[42rem] xl:max-w-none xl:shrink-0">
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold tracking-tight">Playoff Odds</h1>
             <p className="text-zinc-600 dark:text-zinc-400">{subtitle}</p>
@@ -90,7 +89,7 @@ export default async function OddsPage({
           </div>
         </div>
 
-        <aside className="hidden w-80 shrink-0 min-[1440px]:col-start-3 min-[1440px]:block min-[1440px]:justify-self-start">
+        <aside className="hidden w-80 shrink-0 xl:block">
           <BiggestMoversPanel movers={moverRows} />
         </aside>
       </div>
