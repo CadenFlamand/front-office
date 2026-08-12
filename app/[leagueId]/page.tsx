@@ -136,7 +136,7 @@ function renderDashboardShell({
           size, which is exactly the circular-sizing bug that shrank main
           to its intrinsic content width the first time this layout broke.
           A fixed length has no such dependency. */}
-      <div className="flex w-full flex-col gap-8 xl:w-fit xl:flex-row xl:items-start xl:gap-10">
+      <div className="flex w-full flex-col items-center gap-8 xl:w-fit xl:flex-row xl:items-start xl:gap-10">
         <div className="flex w-full max-w-2xl flex-col gap-8 xl:w-[42rem] xl:max-w-none xl:shrink-0">
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>

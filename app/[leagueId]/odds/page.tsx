@@ -68,7 +68,7 @@ export default async function OddsPage({
           items-center, rather than pinning main to its old solo-centered
           position — that put the aside's width entirely on one side and
           dragged the visual center off-axis. */}
-      <div className="flex w-full flex-col gap-8 xl:w-fit xl:flex-row xl:items-start xl:gap-10">
+      <div className="flex w-full flex-col items-center gap-8 xl:w-fit xl:flex-row xl:items-start xl:gap-10">
         <div className="flex w-full max-w-2xl flex-col gap-8 xl:w-[42rem] xl:max-w-none xl:shrink-0">
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold tracking-tight">Playoff Odds</h1>
