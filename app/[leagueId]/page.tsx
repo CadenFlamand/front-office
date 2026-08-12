@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { GmInsightPanel } from "@/components/gm-insight-panel";
 import { OddsTrendSparkline } from "@/components/odds-trend-sparkline";
 import { TeamDashboard, type TeamSummary } from "@/components/team-dashboard";
 import { Separator } from "@/components/ui/separator";
@@ -102,8 +103,15 @@ export default async function TeamPickerPage({
     // Manual leagues have no playoff-odds/snapshot data to trend at all
     // (never written to tracked_leagues) — omitting the panel entirely
     // rather than handing it a leagueId it can only ever show an empty
-    // state for.
-    sidePanel: <OddsTrendSparkline leagueId={leagueId} />,
+    // state for. GmInsightPanel stacks below the sparkline and renders
+    // nothing itself when there's nothing relevant, so this never shows an
+    // empty gap even if no insight applies to the selected team.
+    sidePanel: (
+      <div className="flex flex-col gap-6">
+        <OddsTrendSparkline leagueId={leagueId} />
+        <GmInsightPanel leagueId={leagueId} />
+      </div>
+    ),
   });
 }
 

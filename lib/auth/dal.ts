@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 
-import { getUserById, type User } from "@/lib/db/users";
+import { getUserById, normalizeEmail, type User } from "@/lib/db/users";
 import { userHasLeague } from "@/lib/db/user-leagues";
 import { isManualLeagueId } from "@/lib/manual-league";
 
@@ -63,4 +63,25 @@ export async function getAuthorizedManualLeagueUser(leagueId: string): Promise<U
   if (!user) return null;
   if (!isManualLeagueId(leagueId)) return user;
   return (await userHasLeague(user.id, leagueId)) ? user : null;
+}
+
+/**
+ * Gate for the one admin-only surface (GM Insight authoring) — identified by
+ * email against ADMIN_EMAIL rather than a role column, since there's exactly
+ * one admin (Caden) and no plan to ever have more. requireUser() first, so
+ * an anonymous visitor is sent to sign in; a signed-in non-admin gets
+ * notFound() rather than a 403, matching requireManualLeagueAccess's reasoning
+ * — no reason to confirm the surface exists at all to someone it isn't for.
+ */
+export async function requireAdminAccess(): Promise<User> {
+  const user = await requireUser();
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!adminEmail) {
+    throw new Error("ADMIN_EMAIL is not set");
+  }
+  if (user.email !== normalizeEmail(adminEmail)) {
+    const { notFound } = await import("next/navigation");
+    notFound();
+  }
+  return user;
 }

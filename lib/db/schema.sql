@@ -251,3 +251,22 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   used_at    TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Caden's own hand-curated notes ("GM Insight" on the dashboard), distinct
+-- from the app's computed advice signals (lib/team-advice.ts). player_id is
+-- a Sleeper player_id for a note tied to one player, NULL for a
+-- general/scenario note that isn't. active is a plain boolean here rather
+-- than this schema's usual nullable-timestamp idiom (e.g.
+-- password_reset_tokens.used_at) because the point is explicitly to flip a
+-- note on/off by hand, possibly more than once, not a one-way expiry.
+CREATE TABLE IF NOT EXISTS gm_insights (
+  id BIGSERIAL PRIMARY KEY,
+  content TEXT NOT NULL,
+  player_id TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS gm_insights_player_idx ON gm_insights (player_id);
+CREATE INDEX IF NOT EXISTS gm_insights_active_idx ON gm_insights (active);
