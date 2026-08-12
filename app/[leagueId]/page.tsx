@@ -122,8 +122,29 @@ function renderDashboardShell({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
-      <div className="flex w-full max-w-2xl flex-col gap-8 lg:w-auto lg:max-w-none lg:flex-row lg:items-start lg:justify-center lg:gap-10">
-        <div className="flex flex-col gap-8 lg:w-full lg:max-w-2xl">
+      {/* A grid, not a flex row: the middle track's width is fixed
+          (minmax(0,42rem), the same 672px max-w-2xl the main column always
+          had) and the two flanking tracks are equal `1fr`s, which by
+          definition split whatever's left over *evenly* — regardless of
+          what's in either one. That's what keeps the main column exactly
+          centered, at exactly its original width, no matter whether the
+          aside is present. A flex row can't guarantee that: the aside's
+          own width eats directly into space that would otherwise be
+          symmetric, unless something *else* compensates for it — which is
+          exactly the grid's left (empty) track.
+
+          The reveal breakpoint is a precise custom value, not a stock
+          xl:/2xl: — the equal-1fr guarantee above only actually holds once
+          each flanking track's fair share is at least as wide as the
+          aside (320px) on its own: 48px padding + 320px*2 + 40px*2 gaps +
+          672px main = 1440px exactly. Below that, the right track needs
+          more than its "fair" half, steals it from the left one, and main
+          drifts off-center again — reintroducing the exact bug this grid
+          exists to fix, just less severely. Reusing xl: (1280px) measured
+          as an 80px leftward drift in testing; this is the smallest width
+          where it's provably impossible. */}
+      <div className="grid w-full grid-cols-1 gap-8 min-[1440px]:grid-cols-[1fr_minmax(0,42rem)_1fr] min-[1440px]:items-start min-[1440px]:gap-10">
+        <div className="flex max-w-2xl flex-col gap-8 min-[1440px]:col-start-2">
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>
             <p className="text-zinc-600 dark:text-zinc-400">{subtitle}</p>
@@ -135,7 +156,13 @@ function renderDashboardShell({
         </div>
 
         {sidePanel && (
-          <aside className="hidden w-80 shrink-0 lg:block">{sidePanel}</aside>
+          // justify-self-start, not centered/end, in the right track — the
+          // aside should sit right next to the main column (using the
+          // margin that would otherwise be dead space closest to it), not
+          // drift toward the far edge of a very wide viewport.
+          <aside className="hidden w-80 shrink-0 min-[1440px]:col-start-3 min-[1440px]:block min-[1440px]:justify-self-start">
+            {sidePanel}
+          </aside>
         )}
       </div>
     </div>
