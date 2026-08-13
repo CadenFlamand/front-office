@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { GmInsightPanel } from "@/components/gm-insight-panel";
 import { OddsTrendSparkline } from "@/components/odds-trend-sparkline";
 import { TeamDashboard, type TeamSummary } from "@/components/team-dashboard";
+import { TeamGreeting } from "@/components/team-greeting";
 import { Separator } from "@/components/ui/separator";
 import { requireManualLeagueAccess } from "@/lib/auth/dal";
 import { getManualLeague, getManualTeams } from "@/lib/db/manual-leagues";
@@ -158,6 +159,7 @@ function renderDashboardShell({
           <div className="flex flex-col gap-2">
             <h1 className="font-heading text-3xl font-semibold tracking-tight">{heading}</h1>
             <p className="text-zinc-600 dark:text-zinc-400">{subtitle}</p>
+            <TeamGreeting teams={teams} leagueId={leagueId} />
           </div>
 
           <Separator />
