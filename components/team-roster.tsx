@@ -74,7 +74,7 @@ export function TeamRosterCard({
 function RosterSection({ label, players }: { label: string; players: RosterPlayer[] }) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
       {players.length === 0 ? (

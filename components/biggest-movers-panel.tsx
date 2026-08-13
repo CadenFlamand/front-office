@@ -18,7 +18,7 @@ export function BiggestMoversPanel({ movers }: { movers: MoverRow[] }) {
   return (
     <Card className="bg-surface-1">
       <CardContent className="flex flex-col gap-3">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Biggest Movers This Week
         </p>
 
@@ -54,7 +54,7 @@ function MoverListItem({ mover }: { mover: MoverRow }) {
     <li className="flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-2">
       <Icon aria-hidden="true" className={`size-4 shrink-0 ${toneClass}`} />
       <span className="min-w-0 flex-1 truncate text-sm text-copy-bright">{mover.teamName}</span>
-      <span className={`shrink-0 text-sm font-medium tabular-nums ${toneClass}`}>
+      <span className={`shrink-0 font-mono text-sm font-medium tabular-nums ${toneClass}`}>
         {deltaPts >= 0 ? "+" : ""}
         {deltaPts.toFixed(1)}%
       </span>

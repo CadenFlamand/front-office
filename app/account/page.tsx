@@ -28,7 +28,7 @@ export default async function AccountPage() {
           >
             ← Back
           </Link>
-          <h1 className="text-3xl font-semibold tracking-tight">Account</h1>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">Account</h1>
         </div>
 
         <Card>

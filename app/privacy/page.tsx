@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       </header>
 
       <section className="mx-auto w-full max-w-2xl px-6 py-16 sm:px-8 sm:py-20">
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-white">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight text-zinc-950 dark:text-white">
           Privacy
         </h1>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-500">

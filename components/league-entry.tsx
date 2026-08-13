@@ -77,7 +77,7 @@ export function LeagueEntry() {
         >
           <CardContent className="flex items-center justify-between py-4">
             <div>
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 Continue with
               </p>
               <p className="font-medium">{lastLeague.leagueName}</p>

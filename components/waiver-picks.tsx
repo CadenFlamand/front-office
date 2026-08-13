@@ -156,7 +156,7 @@ function Section({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <h2 className="font-heading text-lg font-semibold tracking-tight">{title}</h2>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
       </div>
 
@@ -196,7 +196,7 @@ function Section({
                     ))}
                   </div>
                 )}
-                <Badge className="shrink-0 tabular-nums" variant="default">
+                <Badge className="shrink-0 font-mono tabular-nums" variant="default">
                   #{player.waiverRank}
                 </Badge>
               </div>

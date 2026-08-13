@@ -156,7 +156,7 @@ export default async function VerdictPage({
       <main className="flex w-full max-w-4xl flex-col gap-8">
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium text-muted-foreground">Front Office</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Trade Verdict</h1>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">Trade Verdict</h1>
           <p className="max-w-2xl text-zinc-600 dark:text-zinc-400">
             A shared trade from the FantasyCalc + FantasyPros-powered trade analyzer.
           </p>
@@ -164,7 +164,7 @@ export default async function VerdictPage({
 
         <Separator />
 
-        <p className="text-center text-4xl font-bold tracking-tight sm:text-5xl">
+        <p className="font-heading text-center text-4xl font-bold tracking-tight sm:text-5xl">
           {payload.tradeLabel}
         </p>
 
@@ -212,7 +212,7 @@ function PlayerListCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{title}</CardTitle>
-          <span className="text-lg font-semibold tabular-nums">{total.toLocaleString()}</span>
+          <span className="font-mono text-lg font-semibold tabular-nums">{total.toLocaleString()}</span>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
@@ -230,7 +230,7 @@ function PlayerListCard({
                   {player.position} · {player.team ?? "FA"}
                 </p>
               </div>
-              <span className="text-sm font-medium tabular-nums">
+              <span className="font-mono text-sm font-medium tabular-nums">
                 {player.value.toLocaleString()}
               </span>
             </div>
@@ -245,7 +245,7 @@ function InvalidTradeLink() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-4 py-16 text-center dark:bg-black">
       <div className="flex flex-col items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">
           This trade link isn&apos;t valid
         </h1>
         <p className="max-w-md text-zinc-600 dark:text-zinc-400">

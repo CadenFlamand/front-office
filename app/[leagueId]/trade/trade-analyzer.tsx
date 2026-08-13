@@ -496,14 +496,14 @@ export function OddsDiffLine({
   return (
     <p className="text-sm text-muted-foreground">
       Playoff odds:{" "}
-      <span className="font-medium tabular-nums text-foreground">
+      <span className="font-mono font-medium tabular-nums text-foreground">
         {beforePct.toFixed(1)}%
       </span>{" "}
       →{" "}
-      <span className={`font-medium tabular-nums ${toneClass}`}>
+      <span className={`font-mono font-medium tabular-nums ${toneClass}`}>
         {afterPct.toFixed(1)}%
       </span>{" "}
-      <span className={`tabular-nums ${tone === "neutral" ? "text-muted-foreground" : toneClass}`}>
+      <span className={`font-mono tabular-nums ${tone === "neutral" ? "text-muted-foreground" : toneClass}`}>
         ({deltaPct >= 0 ? "+" : ""}
         {deltaPct.toFixed(1)} percent)
       </span>
@@ -544,7 +544,7 @@ export function Verdict({
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Verdict
         </p>
         <p
@@ -636,7 +636,7 @@ function TradeColumn({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{title}</CardTitle>
-          <span className="text-lg font-semibold tabular-nums">
+          <span className="font-mono text-lg font-semibold tabular-nums">
             {total.toLocaleString()}
           </span>
         </div>
@@ -666,7 +666,7 @@ function TradeColumn({
                     </p>
                   </div>
                   {sos && <SosTierBadge window={sos.seasonLong} />}
-                  <span className="text-sm font-medium tabular-nums">
+                  <span className="font-mono text-sm font-medium tabular-nums">
                     {player.value.toLocaleString()}
                   </span>
                   <button
@@ -822,7 +822,7 @@ function RosterGrid({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
       <div className="flex flex-col gap-2">
@@ -848,7 +848,9 @@ function RosterGrid({
                 </span>
               </span>
               {isSelected && <Check aria-hidden="true" className="size-4 shrink-0 text-primary" />}
-              <Badge variant="outline">{player.value.toLocaleString()}</Badge>
+              <Badge variant="outline" className="font-mono tabular-nums">
+                {player.value.toLocaleString()}
+              </Badge>
             </button>
           );
         })}
@@ -916,7 +918,9 @@ function PlayerPicker({
                   {player.position} · {player.team ?? "FA"}
                 </span>
               </span>
-              <Badge variant="outline">{player.value.toLocaleString()}</Badge>
+              <Badge variant="outline" className="font-mono tabular-nums">
+                {player.value.toLocaleString()}
+              </Badge>
             </button>
           ))}
         </div>

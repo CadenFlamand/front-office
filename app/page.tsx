@@ -31,7 +31,7 @@ export default function Home() {
               Redraft trade analyzer
             </Badge>
 
-            <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-[3.4rem]">
+            <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-[3.4rem]">
               <span className="block text-brand-gold">
                 Your ticket to the playoffs
               </span>
@@ -56,19 +56,19 @@ export default function Home() {
           <div className="mx-auto w-full max-w-sm lg:ml-auto lg:mr-0">
             <Card className="shadow-xl shadow-zinc-950/5 dark:shadow-none">
               <CardContent className="flex flex-col gap-4">
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Playoff odds after this trade
                 </p>
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl font-semibold text-muted-foreground tabular-nums line-through decoration-1">
+                  <span className="font-mono text-2xl font-semibold text-muted-foreground tabular-nums line-through decoration-1">
                     61.2%
                   </span>
                   <ArrowRight className="size-5 text-muted-foreground" />
-                  <span className="text-3xl font-semibold text-emerald-600 tabular-nums dark:text-emerald-400">
+                  <span className="font-mono text-3xl font-semibold text-emerald-600 tabular-nums dark:text-emerald-400">
                     78.4%
                   </span>
                 </div>
-                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                <p className="font-mono text-sm font-medium text-emerald-600 dark:text-emerald-400">
                   +17.2 pts from this trade
                 </p>
 
@@ -110,7 +110,7 @@ export default function Home() {
           </video>
 
           <div className="flex flex-col items-center gap-4 text-center">
-            <h2 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+            <h2 className="font-heading text-4xl font-semibold tracking-tight text-white sm:text-5xl">
               No one wants to be last
             </h2>
             <Button
@@ -143,10 +143,10 @@ export default function Home() {
       <section className="border-t px-6 py-20 sm:px-8 sm:py-28">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
           <div className="max-w-xl">
-            <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+            <h2 className="font-heading text-sm font-medium tracking-wide text-muted-foreground uppercase">
               Why Front Office
             </h2>
-            <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+            <p className="font-heading mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
               Built around what actually happens the rest of your season.
             </p>
           </div>
@@ -157,11 +157,11 @@ export default function Home() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                     <GitCompareArrows className="size-4" />
-                    <span className="text-xs font-medium tracking-wide uppercase">
+                    <span className="font-heading text-xs font-medium tracking-wide uppercase">
                       The part nobody else does
                     </span>
                   </div>
-                  <h3 className="text-xl font-semibold tracking-tight">
+                  <h3 className="font-heading text-xl font-semibold tracking-tight">
                     Every trade shows the before and after
                   </h3>
                   <p className="max-w-md text-zinc-600 dark:text-zinc-400">
@@ -183,7 +183,7 @@ export default function Home() {
             <Card>
               <CardContent className="flex flex-col gap-2">
                 <TrendingUp className="size-5 text-muted-foreground" />
-                <h3 className="font-semibold tracking-tight">
+                <h3 className="font-heading font-semibold tracking-tight">
                   Playoff odds, simulated live
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -196,7 +196,7 @@ export default function Home() {
             <Card>
               <CardContent className="flex flex-col gap-2">
                 <Share2 className="size-5 text-muted-foreground" />
-                <h3 className="font-semibold tracking-tight">
+                <h3 className="font-heading font-semibold tracking-tight">
                   Share what&apos;s fair
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -212,7 +212,7 @@ export default function Home() {
       {/* Closing CTA */}
       <section className="border-t px-6 py-20 text-center sm:px-8 sm:py-28">
         <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-6">
-          <p className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          <p className="font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
             See what your next trade actually does.
           </p>
           <Button size="lg" className="gap-1.5 px-5" nativeButton={false} render={<Link href="/start" />}>

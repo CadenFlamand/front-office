@@ -99,7 +99,7 @@ export function CoManagerAdvice({
   return (
     <div className="flex flex-col gap-2 rounded-lg border p-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Co-manager advice
         </p>
         <Button

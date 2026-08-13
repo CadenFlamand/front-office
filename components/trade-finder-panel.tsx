@@ -93,7 +93,7 @@ export function TradeFinderPanel({
 
         {!isPending && hasRun && suggestions.length > 0 && (
           <div className="flex flex-col gap-3">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
               {suggestions.length} suggestion{suggestions.length === 1 ? "" : "s"}
             </p>
             {suggestions.slice(0, visibleCount).map((suggestion, index) => (
@@ -210,7 +210,7 @@ function SuggestionCard({
 function PlayerSide({ label, players }: { label: string; players: SuggestedPlayer[] }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
       {players.map((player) => (
@@ -224,7 +224,7 @@ function PlayerSide({ label, players }: { label: string; players: SuggestedPlaye
               {player.position} · {player.team ?? "FA"}
             </span>
           </span>
-          <span className="text-xs tabular-nums text-muted-foreground">
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
             {player.value.toLocaleString()}
           </span>
         </div>
@@ -250,7 +250,7 @@ function OddsRow({
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="min-w-0 truncate text-muted-foreground">{label}</span>
-      <span className="shrink-0 tabular-nums">
+      <span className="font-mono shrink-0 tabular-nums">
         {(before * 100).toFixed(1)}% <span className="text-muted-foreground">→</span>{" "}
         <span className="font-medium">{(after * 100).toFixed(1)}%</span>{" "}
         <span className={deltaClass}>

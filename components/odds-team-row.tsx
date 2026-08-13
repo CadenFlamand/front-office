@@ -30,7 +30,7 @@ export function OddsTeamRow({
         >
           <span className="w-5 text-sm font-medium text-muted-foreground">{rank}</span>
           <CardTitle className="flex-1">{result.teamName}</CardTitle>
-          <Badge variant="default" className="tabular-nums">
+          <Badge variant="default" className="font-mono tabular-nums">
             {(result.playoffOdds * 100).toFixed(1)}%
           </Badge>
           <ChevronDown

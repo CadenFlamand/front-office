@@ -62,7 +62,7 @@ export function ManualLeagueManager({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{leagueName}</h1>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">{leagueName}</h1>
         <p className="text-sm text-muted-foreground">
           Manual league — add teams, assign real players, and keep records up to date by hand.
         </p>
@@ -210,7 +210,7 @@ function ManualTeamCard({
         </div>
 
         <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
             Roster ({team.playerIds.length})
           </p>
           {team.playerIds.length === 0 ? (

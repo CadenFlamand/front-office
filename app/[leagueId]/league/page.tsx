@@ -90,7 +90,7 @@ export default async function LeaguePage({
       <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
         <div className="flex w-full max-w-3xl flex-col gap-8">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold tracking-tight">{league.name}</h1>
+            <h1 className="font-heading text-3xl font-semibold tracking-tight">{league.name}</h1>
             <p className="text-zinc-600 dark:text-zinc-400">
               Manually-entered league · {manualTeams.length} teams
             </p>
@@ -165,7 +165,7 @@ export default async function LeaguePage({
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-3xl flex-col gap-8">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">
             {league.name}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
@@ -208,7 +208,7 @@ export default async function LeaguePage({
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="default" className="tabular-nums">
+                        <Badge variant="default" className="font-mono tabular-nums">
                           {((oddsByRosterId.get(roster.rosterId) ?? 0) * 100).toFixed(1)}%
                         </Badge>
                         <Badge variant="secondary">{formatRecord(roster)}</Badge>
@@ -259,7 +259,7 @@ function RosterSection({
 }) {
   return (
     <div className="mt-4 first:mt-0">
-      <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <h3 className="font-heading mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
         {title}
       </h3>
       <div className="flex flex-col gap-1.5">{children}</div>

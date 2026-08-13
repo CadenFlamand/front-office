@@ -185,11 +185,11 @@ export function TeamDashboard({
               </p>
             ) : (
               <div className="flex flex-col items-center gap-1 py-4 text-center">
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Playoff Odds
                 </p>
                 <p
-                  className={`text-4xl font-medium tabular-nums ${BUCKET_ODDS_CLASSES[selectedTeam.bucket]}`}
+                  className={`font-mono text-4xl font-medium tabular-nums ${BUCKET_ODDS_CLASSES[selectedTeam.bucket]}`}
                 >
                   {(selectedTeam.playoffOdds * 100).toFixed(1)}
                   <span className="text-brand-gold">%</span>
@@ -256,10 +256,10 @@ export function TeamDashboard({
 function RankTile({ label, rank }: { label: string; rank: number }) {
   return (
     <div className="flex flex-col items-center gap-1 rounded-lg bg-surface-2 py-3 text-center">
-      <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <div className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </div>
-      <div className="text-lg font-medium text-copy-bright tabular-nums">
+      <div className="font-mono text-lg font-medium text-copy-bright tabular-nums">
         {ordinal(rank)}
       </div>
     </div>

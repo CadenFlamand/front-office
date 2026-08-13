@@ -24,7 +24,7 @@ export default async function OddsPage({
       <div className="flex flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
         <div className="flex w-full max-w-2xl flex-col gap-8">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold tracking-tight">Playoff Odds</h1>
+            <h1 className="font-heading text-3xl font-semibold tracking-tight">Playoff Odds</h1>
             <p className="text-zinc-600 dark:text-zinc-400">Not available for manual leagues.</p>
           </div>
 
@@ -72,7 +72,7 @@ export default async function OddsPage({
       <div className="grid w-full grid-cols-1 gap-8 min-[1440px]:grid-cols-[1fr_minmax(0,42rem)_1fr] min-[1440px]:items-start min-[1440px]:gap-10">
         <div className="flex w-full max-w-2xl flex-col gap-8 justify-self-center min-[1440px]:col-start-2">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold tracking-tight">Playoff Odds</h1>
+            <h1 className="font-heading text-3xl font-semibold tracking-tight">Playoff Odds</h1>
             <p className="text-zinc-600 dark:text-zinc-400">{subtitle}</p>
           </div>
 

@@ -46,7 +46,7 @@ export function PlayerSosList({ leagueId, rosterId }: { leagueId: string; roster
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border p-4">
-      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
         Strength of Schedule
       </p>
       <ul className="flex flex-col gap-2 text-sm">

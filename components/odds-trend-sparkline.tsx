@@ -98,7 +98,7 @@ export function OddsTrendSparkline({ leagueId }: { leagueId: string }) {
   return (
     <Card className="bg-surface-1">
       <CardContent className="flex flex-col gap-2">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Playoff Odds Trend
         </p>
 
@@ -134,11 +134,11 @@ function OddsTrendCaption({ history }: { history: { week: number; playoffOdds: n
 
   return (
     <div className="flex items-center justify-between text-sm">
-      <span className="text-copy-bright tabular-nums">
+      <span className="font-mono text-copy-bright tabular-nums">
         {(first.playoffOdds * 100).toFixed(1)}% <span className="text-muted-foreground">→</span>{" "}
         {(last.playoffOdds * 100).toFixed(1)}%
       </span>
-      <span className={`tabular-nums ${deltaClass}`}>
+      <span className={`font-mono tabular-nums ${deltaClass}`}>
         ({delta >= 0 ? "+" : ""}
         {(delta * 100).toFixed(1)})
       </span>

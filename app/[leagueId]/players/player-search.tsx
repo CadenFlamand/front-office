@@ -93,7 +93,7 @@ export function PlayerSearch({ players }: { players: PlayerSummary[] }) {
 
       {visiblePlayers.length > 0 ? (
         <Card className="gap-0 py-0">
-          <div className="hidden grid-cols-[minmax(0,1fr)_5rem_5rem_7rem_7rem] gap-3 border-b bg-muted/40 px-4 py-3 text-xs font-medium tracking-wide text-muted-foreground uppercase sm:grid">
+          <div className="hidden grid-cols-[minmax(0,1fr)_5rem_5rem_7rem_7rem] gap-3 border-b bg-muted/40 px-4 py-3 font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase sm:grid">
             <span>Player</span>
             <span>Position</span>
             <span>Team</span>

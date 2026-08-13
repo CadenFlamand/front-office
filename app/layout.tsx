@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, JetBrains_Mono, Oswald } from "next/font/google";
 import "./globals.css";
 
 import { FeedbackFloatingButton } from "@/components/feedback-floating-button";
@@ -10,8 +10,21 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Display/headline font — loaded at a single fixed weight (not the full
+// variable range) so it always renders bold wherever font-heading is
+// applied, regardless of whatever Tailwind font-weight utility already
+// sits on that element.
+const oswald = Oswald({
+  variable: "--font-oswald",
+  subsets: ["latin"],
+  weight: "700",
+});
+
+// Numeric-data font (odds percentages, trade values, deltas) — variable,
+// no fixed weight, same as Geist before it: per-element Tailwind weight
+// utilities (font-medium/font-semibold/etc.) keep controlling weight.
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -39,7 +52,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${oswald.variable} ${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

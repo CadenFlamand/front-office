@@ -112,7 +112,7 @@ function GmInsightForm({
   return (
     <Card>
       <CardContent className="flex flex-col gap-4">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="font-heading text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {editing ? "Edit insight" : "New insight"}
         </p>
 
@@ -261,7 +261,7 @@ function GmInsightRow({
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
           {insight.playerName && (
-            <span className="text-xs font-medium tracking-wide text-brand-gold uppercase">
+            <span className="font-heading text-xs font-medium tracking-wide text-brand-gold uppercase">
               {insight.playerName}
             </span>
           )}

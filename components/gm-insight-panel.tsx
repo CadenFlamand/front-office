@@ -72,7 +72,7 @@ function InsightLabel({ playerName }: { playerName: string | null }) {
   return (
     <div className="flex items-center gap-1.5">
       <Lightbulb className="size-3.5 shrink-0 text-brand-gold" aria-hidden="true" />
-      <span className="text-xs font-medium tracking-wide text-brand-gold uppercase">
+      <span className="font-heading text-xs font-medium tracking-wide text-brand-gold uppercase">
         GM Insight
       </span>
       {playerName && (
