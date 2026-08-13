@@ -1,8 +1,10 @@
 import { NEAR_TERM_WINDOW_WEEKS } from "./sos";
 import {
+  computeStrengthFlags,
   computeWeakPositionFlags,
   type PositionStrength,
   type StarterPosition,
+  type StrengthFlag,
   type WeakPositionFlag,
 } from "./team-context";
 
@@ -30,6 +32,12 @@ export interface SellHighFlag {
   note: string;
 }
 
+export interface StrengthPositionAction {
+  position: string;
+  reason: "depth" | "quality";
+  action: string;
+}
+
 export interface AdviceSignals {
   stage: SeasonStage;
   diagnosticNote?: string;
@@ -42,6 +50,11 @@ export interface AdviceSignals {
   // proposed trade.
   sellHighFlags?: SellHighFlag[];
   thinPositionActions: ThinPositionAction[];
+  // Stage 2 (active_trading) only, same as sellHighFlags and for the same
+  // reason — "good trade leverage" is misleading advice once the trade
+  // deadline (waiver_mode) has passed, unlike thinPositionActions' weakness
+  // framing, which is still worth knowing post-deadline.
+  strengthActions: StrengthPositionAction[];
   oddsTrend?: OddsTrend;
 }
 
@@ -53,6 +66,8 @@ export interface AdviceInput {
   totalTeams: number;
   // From TeamContext.thinPositions (lib/team-context.ts).
   thinPositions: string[];
+  // From TeamContext.surplusPositions (lib/team-context.ts).
+  surplusPositions: string[];
   // From TeamContext.positionStrength (lib/team-context.ts).
   positionStrength: Record<"QB" | "RB" | "WR" | "TE", PositionStrength>;
   // From lib/production-pace.ts — positions where no rostered player is
@@ -146,6 +161,31 @@ function computeThinPositionActions(
     const text = productionFlagged.has(position) ? action + PRODUCTION_BACKUP_CLAUSE : action;
     return [{ position, action: text }];
   });
+}
+
+// Positive mirror of THIN_POSITION_ACTIONS — copy layer only, the flags
+// themselves (and their thresholds) live in lib/team-context.ts's
+// computeStrengthFlags(). Depth and quality get distinct wording since
+// they're different claims: depth is "you can afford to trade from here
+// without opening a hole", quality is "this specific player is valuable
+// regardless of what's behind him".
+function strengthNote(flag: StrengthFlag): string {
+  if (flag.reason === "depth") {
+    return `${flag.position} is a strength — you have surplus depth here, good trade leverage.`;
+  }
+  return `Your ${flag.position} is elite — a strong trade chip if you ever wanted to leverage it.`;
+}
+
+function computeStrengthActions(
+  positionStrength: Record<StarterPosition, PositionStrength>,
+  surplusPositions: string[],
+  weakPositions: Set<string>
+): StrengthPositionAction[] {
+  return computeStrengthFlags(positionStrength, surplusPositions, weakPositions).map((flag) => ({
+    position: flag.position,
+    reason: flag.reason,
+    action: strengthNote(flag),
+  }));
 }
 
 function qbTeMindfulNote(
@@ -288,6 +328,22 @@ export function computeCoManagerAdvice(input: AdviceInput): AdviceSignals {
         : computeThinPositionActions(input.thinPositions, input.positionsBelowHistoricalBaseline),
     sellHighFlags:
       stage === "active_trading" ? computeSellHighFlags(input.sellHighCandidates) : undefined,
+    // Same gating as sellHighFlags, for the same reason — see the doc
+    // comment on AdviceSignals.strengthActions.
+    strengthActions:
+      stage === "active_trading"
+        ? computeStrengthActions(
+            input.positionStrength,
+            input.surplusPositions,
+            new Set(
+              computeWeakPositionFlags(
+                input.thinPositions,
+                input.positionStrength,
+                input.positionsBelowHistoricalBaseline
+              ).map((flag) => flag.position)
+            )
+          )
+        : [],
     oddsTrend: computeOddsTrend(input.oddsHistory),
   };
 }

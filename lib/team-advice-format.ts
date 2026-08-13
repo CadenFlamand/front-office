@@ -29,7 +29,7 @@ function positionCategory(position: string): "streaming" | "thin" {
   return position === "QB" || position === "TE" ? "streaming" : "thin";
 }
 
-export type AdviceBulletCategory = "streaming" | "thin" | "sos" | "neutral";
+export type AdviceBulletCategory = "streaming" | "thin" | "sos" | "strength" | "neutral";
 
 export interface AdviceBullet {
   category: AdviceBulletCategory;
@@ -99,7 +99,10 @@ function computeThinAndSellHighBullets(
 // only and thinPositionActions is never populated in that same stage, so
 // those two never actually conflict — sellHighFlags and
 // thinPositionActions CAN coexist in Stage 2, which is why sellHighFlags
-// is checked first). Compact mode never shows the merged sell-high +
+// is checked first). strengthActions is last priority, a "nothing wrong
+// here" fallback rather than something competing with an actual concern —
+// it only ever surfaces in compact mode when every higher-priority signal
+// above it is empty. Compact mode never shows the merged sell-high +
 // thin-position text — it only ever shows one line, so the merge in
 // computeThinAndSellHighBullets (for the expanded list) doesn't apply here.
 export function formatAdviceCompact(advice: AdviceSignals): AdviceBullet | undefined {
@@ -120,11 +123,16 @@ export function formatAdviceCompact(advice: AdviceSignals): AdviceBullet | undef
     const action = advice.thinPositionActions[0];
     return { category: positionCategory(action.position), text: formatThinPositionAction(action) };
   }
+  if (advice.strengthActions.length > 0) {
+    return { category: "strength", text: advice.strengthActions[0].action };
+  }
   return undefined;
 }
 
 // One bullet per active signal, in narrative display order (not the
-// priority order formatAdviceCompact uses).
+// priority order formatAdviceCompact uses). Strength bullets render after
+// the thin/sell-high concerns and before the odds trend — concerns first,
+// then leverage, then the trend line last.
 export function formatAdviceExpanded(advice: AdviceSignals): AdviceBullet[] {
   const bullets: AdviceBullet[] = [];
   if (advice.diagnosticNote) bullets.push({ category: "neutral", text: advice.diagnosticNote });
@@ -134,6 +142,9 @@ export function formatAdviceExpanded(advice: AdviceSignals): AdviceBullet[] {
   bullets.push(
     ...computeThinAndSellHighBullets(advice.thinPositionActions, advice.sellHighFlags ?? [])
   );
+  for (const action of advice.strengthActions) {
+    bullets.push({ category: "strength", text: action.action });
+  }
   if (advice.oddsTrend) bullets.push({ category: "neutral", text: formatOddsTrend(advice.oddsTrend) });
   return bullets;
 }

@@ -22,6 +22,10 @@ export interface TeamContext {
   record: string;
   bucket: PlayoffBucket;
   thinPositions: string[];
+  // Positions with more startable depth than the lineup requires — the
+  // trade-leverage side of thinPositions, same league-format bar (see
+  // computeSurplusPositions).
+  surplusPositions: string[];
   positionStrength: Record<(typeof STARTER_POSITIONS)[number], PositionStrength>;
   // Sleeper IDs of this team's rostered players that also have a FantasyCalc
   // value (i.e. tradeable skill players) — used to scope "You Give" to this
@@ -131,6 +135,42 @@ function computeThinPositions(
   );
 }
 
+// A position counts as surplus when the roster has more startable players at
+// it than the lineup requires — i.e. one can leave without opening a hole.
+// Uses the same league-format-relative bar as computeThinPositions() above
+// (this is a question about filling your own lineup, not league-wide
+// quality), and deliberately never flags a position also passed in
+// excludePositions — a position can't be both a hole and a place to trade
+// from. Originally lived inline in lib/trade-finder.ts's computeRosterFit();
+// extracted here once the co-manager advice strength signal became a second
+// consumer of the exact same bar.
+export function computeSurplusPositions(
+  rosterPlayerIds: string[],
+  valuesById: Map<string, TradeablePlayer>,
+  compositeRanks: Map<string, number>,
+  requiredStarters: Record<string, number>,
+  totalRosters: number,
+  excludePositions: Set<string> = new Set()
+): string[] {
+  const surplusPositions: string[] = [];
+  for (const position of STARTER_POSITIONS) {
+    if (excludePositions.has(position)) continue;
+    const required = requiredStarters[position];
+    if (!required) continue;
+
+    const startableBar = required * totalRosters;
+    const startable = rosterPlayerIds.filter((id) => {
+      const player = valuesById.get(id);
+      if (player?.position !== position) return false;
+      const rank = compositeRanks.get(id);
+      return rank !== undefined && rank <= startableBar;
+    }).length;
+
+    if (startable > required) surplusPositions.push(position);
+  }
+  return surplusPositions;
+}
+
 const TOP20_RANK = 20;
 
 // Raw positional depth/strength, independent of league starter requirements
@@ -185,6 +225,25 @@ const RB_WR_THIN_ROSTER_COUNT_THRESHOLD = 3; // flags at 3 or fewer rostered
 const QB_TE_WEAK_RANK_THRESHOLD: Record<"QB" | "TE", number> = {
   QB: QB_WEAK_RANK_THRESHOLD,
   TE: TE_WEAK_RANK_THRESHOLD,
+};
+
+// "Elite" — a co-manager advice strength signal, deliberately tighter than
+// the weak thresholds above rather than their inverse, so a position can't
+// read as both weak and elite: QB/TE weak is "worse than top-7/top-5", elite
+// is "top-3", leaving a real middle band that's neither. RB/WR weak is about
+// *depth* (fewer than two top-20 options); elite here is about your single
+// best option instead, since a team can have a legitimately elite RB1 while
+// still being weak on options behind him — the exclusion that keeps those
+// two signals from co-occurring lives in computeStrengthFlags(), not here.
+const QB_ELITE_RANK_THRESHOLD = 3;
+const TE_ELITE_RANK_THRESHOLD = 3;
+const RB_WR_ELITE_RANK_THRESHOLD = 5;
+
+const ELITE_RANK_THRESHOLD: Record<StarterPosition, number> = {
+  QB: QB_ELITE_RANK_THRESHOLD,
+  TE: TE_ELITE_RANK_THRESHOLD,
+  RB: RB_WR_ELITE_RANK_THRESHOLD,
+  WR: RB_WR_ELITE_RANK_THRESHOLD,
 };
 
 // "weak" = ranking-driven (or production-driven, see flaggedByRank below).
@@ -300,6 +359,46 @@ export function computeWeakPositionFlags(
   return flags;
 }
 
+// "depth" = surplus roster count (computeSurplusPositions' league-format
+// bar). "quality" = a single elite-ranked player, independent of depth. The
+// two are independent per position, same as weak's "weak"/"thin" — a
+// stacked-and-elite WR corps legitimately earns both. Neither ever fires for
+// a position already in weakPositions: "here's leverage" and "here's a
+// concern" are deliberately disjoint per position, so the advice card never
+// says both about the same spot in the same breath.
+export type StrengthReason = "depth" | "quality";
+
+export interface StrengthFlag {
+  position: StarterPosition;
+  reason: StrengthReason;
+  // For reason "quality" only — the composite rank that earned the flag.
+  bestPositionRank?: number;
+}
+
+export function computeStrengthFlags(
+  positionStrength: Record<StarterPosition, PositionStrength>,
+  surplusPositions: string[],
+  weakPositions: Set<string>
+): StrengthFlag[] {
+  const surplusSet = new Set(surplusPositions);
+  const flags: StrengthFlag[] = [];
+
+  for (const position of STARTER_POSITIONS) {
+    if (weakPositions.has(position)) continue;
+
+    if (surplusSet.has(position)) {
+      flags.push({ position, reason: "depth" });
+    }
+
+    const rank = positionStrength[position].bestPositionRank;
+    if (rank !== null && rank <= ELITE_RANK_THRESHOLD[position]) {
+      flags.push({ position, reason: "quality", bestPositionRank: rank });
+    }
+  }
+
+  return flags;
+}
+
 export async function getTeamContexts(leagueId: string): Promise<{
   teams: TeamContext[];
   values: TradeablePlayer[];
@@ -325,20 +424,38 @@ export async function getTeamContexts(leagueId: string): Promise<{
     const manager = roster.ownerId ? managersById.get(roster.ownerId) : undefined;
     const rosterPlayerIds = roster.players.filter((id) => valuesById.has(id));
 
+    const thinPositions = computeThinPositions(
+      roster.players,
+      valuesById,
+      compositeRanks,
+      requiredStarters,
+      league.totalRosters
+    );
+    const positionStrength = computePositionStrength(rosterPlayerIds, valuesById, compositeRanks);
+    // No production-pace data at this batch scope (that's a per-team,
+    // on-demand DB lookup — see lib/team-advice-action.ts), so this exclusion
+    // set is rank-only. Fine here: it's just deciding which positions
+    // surplus is allowed to consider, not the weak flags shown to the user.
+    const weakPositions = new Set(
+      computeWeakPositionFlags(thinPositions, positionStrength).map((flag) => flag.position)
+    );
+
     return {
       rosterId: roster.rosterId,
       teamName: managerTeamName(manager),
       ownerName: managerDisplayName(manager),
       record: formatRecord(roster),
       bucket: getPlayoffBucket(oddsByRosterId.get(roster.rosterId) ?? 0),
-      thinPositions: computeThinPositions(
-        roster.players,
+      thinPositions,
+      surplusPositions: computeSurplusPositions(
+        rosterPlayerIds,
         valuesById,
         compositeRanks,
         requiredStarters,
-        league.totalRosters
+        league.totalRosters,
+        weakPositions
       ),
-      positionStrength: computePositionStrength(rosterPlayerIds, valuesById, compositeRanks),
+      positionStrength,
       rosterPlayerIds,
     };
   });

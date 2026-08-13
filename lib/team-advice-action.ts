@@ -79,6 +79,7 @@ export async function getCoManagerAdvice(
     pfRank: ranks.pfRank,
     totalTeams: rosters.length,
     thinPositions: team.thinPositions,
+    surplusPositions: team.surplusPositions,
     positionStrength: team.positionStrength,
     oddsHistory,
     sellHighCandidates,

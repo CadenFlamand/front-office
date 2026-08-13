@@ -6,8 +6,8 @@ import {
 } from "./production-pace";
 import {
   computePositionStrength,
+  computeSurplusPositions,
   computeWeakPositionFlags,
-  type StarterPosition,
   type WeakPositionFlag,
 } from "./team-context";
 import { LARGE_VALUE_DIFF_THRESHOLD } from "./trade-label";
@@ -100,8 +100,6 @@ export interface FinderResult {
   myFit: RosterFit;
   fitByPartner: Map<number, RosterFit>;
 }
-
-const STARTER_POSITIONS: StarterPosition[] = ["QB", "RB", "WR", "TE"];
 
 // First-pass magnitudes, uncalibrated like every other threshold in this app.
 //
@@ -198,23 +196,16 @@ export function computeRosterFit(
   const needs = computeWeakPositionFlags(NO_LEAGUE_FORMAT_FLAGS, positionStrength, belowBaseline);
   const needPositions = new Set(needs.map((flag) => flag.position));
 
-  const surplusPositions = new Set<string>();
-  for (const position of STARTER_POSITIONS) {
-    // A position can't be both a hole and a place to trade from.
-    if (needPositions.has(position)) continue;
-    const required = requiredStarters[position];
-    if (!required) continue;
-
-    const startableBar = required * totalRosters;
-    const startable = team.valuedPlayerIds.filter((id) => {
-      const player = playersById.get(id);
-      if (player?.position !== position) return false;
-      const rank = compositeRanks.get(id);
-      return rank !== undefined && rank <= startableBar;
-    }).length;
-
-    if (startable > required) surplusPositions.add(position);
-  }
+  const surplusPositions = new Set(
+    computeSurplusPositions(
+      team.valuedPlayerIds,
+      playersById,
+      compositeRanks,
+      requiredStarters,
+      totalRosters,
+      needPositions
+    )
+  );
 
   return { needs, needPositions, surplusPositions };
 }

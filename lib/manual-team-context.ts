@@ -41,10 +41,10 @@ const DEFAULT_TOTAL_ROSTERS = 12;
 /**
  * Manual-league analog of lib/team-context.ts's getTeamContexts() — same
  * return shape, so the trade page/analyzer need no new types. thinPositions
- * is always empty (no league roster format to compute a league-format-
- * relative bar against); the mindful-position-flags signal (fixed cutoffs,
- * computed from positionStrength) is what manual leagues use instead — see
- * lib/manual-advice-action.ts.
+ * and surplusPositions are always empty (no league roster format to compute
+ * a league-format-relative bar against); the mindful-position-flags signal
+ * (fixed cutoffs, computed from positionStrength) is what manual leagues use
+ * instead — see lib/manual-advice-action.ts.
  */
 export async function getManualTeamContexts(leagueId: string): Promise<{
   teams: TeamContext[];
@@ -75,6 +75,10 @@ export async function getManualTeamContexts(leagueId: string): Promise<{
       record: formatManualRecord(team),
       bucket: getManualBucket(rankByTeamId.get(team.id) ?? manualTeams.length, manualTeams.length),
       thinPositions: [],
+      // Same reasoning as thinPositions above — computeSurplusPositions()
+      // uses the identical league-format-relative bar, which manual leagues
+      // have no real roster format to compute against.
+      surplusPositions: [],
       positionStrength: computePositionStrength(rosterPlayerIds, valuesById, compositeRanks),
       rosterPlayerIds,
     };

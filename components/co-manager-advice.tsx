@@ -25,6 +25,7 @@ const SIGNAL_DOT_CLASSES: Record<AdviceBulletCategory, string> = {
   streaming: "bg-signal-stream",
   thin: "bg-signal-thin",
   sos: "bg-signal-sos",
+  strength: "bg-signal-strength",
   neutral: "bg-muted-foreground",
 };
 
