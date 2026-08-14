@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SosTierBadge } from "@/components/sos-tier-badge";
 import { TradeFinderPanel } from "@/components/trade-finder-panel";
+import { ValueAmount } from "@/components/value-amount";
 import type { TradeablePlayer } from "@/lib/fantasycalc";
 import { isManualLeagueId } from "@/lib/manual-league";
 import { computeManualTradeVerdict } from "@/lib/manual-trade-verdict";
@@ -27,7 +28,14 @@ import { useStoredRosterId } from "@/lib/team-selection";
 import { getTradeLabel } from "@/lib/trade-label";
 import { getOddsForTrade, type TradeOddsDiff } from "@/lib/trade-odds-action";
 import { computeTradeVerdict, type TradeVerdict, type VerdictTone } from "@/lib/trade-verdict";
+import { useValueVisibility } from "@/lib/value-visibility";
 import { encodeVerdict } from "@/lib/verdict-share";
+
+// Two independent scopes (see lib/value-visibility.ts): the live analyzer
+// page and the shared verdict link default to hidden independently, so a
+// link you share with a leaguemate never leaks whether *you* had values
+// showing when you built the trade.
+export const TRADE_ANALYZER_VALUES_SCOPE = "trade-analyzer";
 
 const RESULT_LIMIT = 8;
 
@@ -320,6 +328,7 @@ export function TradeAnalyzer({
           isPending={isOddsPending}
           hasError={oddsError}
           onRetry={() => setOddsRetryKey((key) => key + 1)}
+          valuesScope={TRADE_ANALYZER_VALUES_SCOPE}
         />
 
         {selectedTeam && hasPlayers && odds && verdict && (
@@ -518,13 +527,21 @@ export function Verdict({
   isPending,
   hasError = false,
   onRetry,
+  valuesScope,
 }: {
   verdict: TradeVerdict | null;
   hasPlayers: boolean;
   isPending: boolean;
   hasError?: boolean;
   onRetry?: () => void;
+  // Which page's show/hide-values preference valueCaption below should
+  // respect — passed explicitly rather than assumed, since this component
+  // is shared between the live analyzer and the read-only verdict share
+  // page, which deliberately use two different (independently-persisted)
+  // scopes.
+  valuesScope: string;
 }) {
+  const [showValues, setShowValues] = useValueVisibility(valuesScope);
   let headline: string;
   let tone: VerdictTone;
 
@@ -571,7 +588,22 @@ export function Verdict({
           </button>
         )}
         {verdict && (
-          <p className="text-sm text-muted-foreground">{verdict.valueCaption}</p>
+          <p className="text-sm text-muted-foreground">
+            {showValues ? (
+              verdict.valueCaption
+            ) : (
+              <>
+                Market value comparison —{" "}
+                <button
+                  className="underline-offset-2 hover:text-foreground hover:underline"
+                  onClick={() => setShowValues(true)}
+                  type="button"
+                >
+                  Show value
+                </button>
+              </>
+            )}
+          </p>
         )}
         {verdict && verdict.showValueOddsMismatch && (
           <p className="mt-1 max-w-sm text-xs text-muted-foreground">
@@ -637,7 +669,7 @@ function TradeColumn({
         <div className="flex items-center justify-between">
           <CardTitle>{title}</CardTitle>
           <span className="font-mono text-lg font-semibold tabular-nums">
-            {total.toLocaleString()}
+            <ValueAmount value={total} scope={TRADE_ANALYZER_VALUES_SCOPE} />
           </span>
         </div>
         {headerExtra}
@@ -667,7 +699,7 @@ function TradeColumn({
                   </div>
                   {sos && <SosTierBadge window={sos.seasonLong} />}
                   <span className="font-mono text-sm font-medium tabular-nums">
-                    {player.value.toLocaleString()}
+                    <ValueAmount value={player.value} scope={TRADE_ANALYZER_VALUES_SCOPE} />
                   </span>
                   <button
                     aria-label={`Remove ${player.name}`}
@@ -849,7 +881,11 @@ function RosterGrid({
               </span>
               {isSelected && <Check aria-hidden="true" className="size-4 shrink-0 text-primary" />}
               <Badge variant="outline" className="font-mono tabular-nums">
-                {player.value.toLocaleString()}
+                <ValueAmount
+                  interactive={false}
+                  scope={TRADE_ANALYZER_VALUES_SCOPE}
+                  value={player.value}
+                />
               </Badge>
             </button>
           );
@@ -919,7 +955,11 @@ function PlayerPicker({
                 </span>
               </span>
               <Badge variant="outline" className="font-mono tabular-nums">
-                {player.value.toLocaleString()}
+                <ValueAmount
+                  interactive={false}
+                  scope={TRADE_ANALYZER_VALUES_SCOPE}
+                  value={player.value}
+                />
               </Badge>
             </button>
           ))}

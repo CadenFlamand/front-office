@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ValueAmount } from "@/components/value-amount";
 import {
   findWinWinTrades,
   type SuggestedPlayer,
@@ -17,6 +18,11 @@ import {
 // use for a positive outcome, so a suggestion reads as part of that system
 // rather than introducing a second "good news" colour.
 const POSITIVE_TEXT = "text-emerald-600 dark:text-emerald-400";
+
+// Must match trade-analyzer.tsx's TRADE_ANALYZER_VALUES_SCOPE — duplicated
+// rather than imported, since this panel is embedded inside trade-analyzer.tsx
+// and importing back from there would be a circular import.
+const TRADE_ANALYZER_VALUES_SCOPE = "trade-analyzer";
 
 const COLLAPSED_SUGGESTIONS = 3;
 
@@ -225,7 +231,7 @@ function PlayerSide({ label, players }: { label: string; players: SuggestedPlaye
             </span>
           </span>
           <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            {player.value.toLocaleString()}
+            <ValueAmount value={player.value} scope={TRADE_ANALYZER_VALUES_SCOPE} />
           </span>
         </div>
       ))}

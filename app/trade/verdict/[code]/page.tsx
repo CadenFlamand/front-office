@@ -4,11 +4,18 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { OddsDiffLine, TeamContextLine, Verdict } from "@/app/[leagueId]/trade/trade-analyzer";
+import { ShowValuesToggle } from "@/components/show-values-toggle";
+import { ValueAmount } from "@/components/value-amount";
 import { getLeagueData } from "@/lib/league-data";
 import { formatRecord, managerDisplayName, managerTeamName } from "@/lib/league-types";
 import { getAllPlayers, getPlayerName, type PlayersById } from "@/lib/sleeper";
 import type { TeamContext } from "@/lib/team-context";
 import { decodeVerdict, type TradeSidePlayer, type VerdictPayload } from "@/lib/verdict-share";
+
+// Independent from trade-analyzer.tsx's TRADE_ANALYZER_VALUES_SCOPE on
+// purpose — see lib/value-visibility.ts's doc comment: a link shared with a
+// leaguemate shouldn't inherit whatever the trade's creator had toggled.
+const TRADE_VERDICT_VALUES_SCOPE = "trade-verdict";
 
 interface DisplayPlayer {
   sleeperId: string;
@@ -154,12 +161,15 @@ export default async function VerdictPage({
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 px-4 py-10 dark:bg-black sm:px-6 sm:py-16">
       <main className="flex w-full max-w-4xl flex-col gap-8">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-muted-foreground">Front Office</p>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Trade Verdict</h1>
-          <p className="max-w-2xl text-zinc-600 dark:text-zinc-400">
-            A shared trade from the FantasyCalc + FantasyPros-powered trade analyzer.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-muted-foreground">Front Office</p>
+            <h1 className="font-heading text-3xl font-semibold tracking-tight">Trade Verdict</h1>
+            <p className="max-w-2xl text-zinc-600 dark:text-zinc-400">
+              A shared trade from the FantasyCalc + FantasyPros-powered trade analyzer.
+            </p>
+          </div>
+          <ShowValuesToggle scope={TRADE_VERDICT_VALUES_SCOPE} />
         </div>
 
         <Separator />
@@ -179,7 +189,12 @@ export default async function VerdictPage({
           <TeamContextLine team={team} verdict={payload.verdict} />
           <OddsDiffLine odds={payload.odds} tone={payload.verdict.tone} isPending={false} />
 
-          <Verdict verdict={payload.verdict} hasPlayers isPending={false} />
+          <Verdict
+            verdict={payload.verdict}
+            hasPlayers
+            isPending={false}
+            valuesScope={TRADE_VERDICT_VALUES_SCOPE}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -212,7 +227,9 @@ function PlayerListCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{title}</CardTitle>
-          <span className="font-mono text-lg font-semibold tabular-nums">{total.toLocaleString()}</span>
+          <span className="font-mono text-lg font-semibold tabular-nums">
+            <ValueAmount value={total} scope={TRADE_VERDICT_VALUES_SCOPE} />
+          </span>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
@@ -231,7 +248,7 @@ function PlayerListCard({
                 </p>
               </div>
               <span className="font-mono text-sm font-medium tabular-nums">
-                {player.value.toLocaleString()}
+                <ValueAmount value={player.value} scope={TRADE_VERDICT_VALUES_SCOPE} />
               </span>
             </div>
           ))
